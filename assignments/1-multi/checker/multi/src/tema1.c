@@ -28,31 +28,15 @@ int setup_hashmap(Hashmap **h) {
     return 0;
 }
 
-int setup_dirs(Node_t **dirs, Hashmap **h) {
-    *dirs = malloc(sizeof(Node_t));
-    if (*dirs == NULL) {
-        free_hashmap(*h);
-        free(*h);
-        return 12;
-    }
-    (*dirs) -> data = strdup(".");
-    if ((*dirs) -> data == NULL) {
-        free_hashmap(*h);
-        free(*h);
-        return 12;
-    }
-    return 0;
-}
-
-int add_arg_define(char *argv[], Hashmap *h, int i) {
+int add_arg_define(char *argv[], Hashmap *h, int *i) {
     char *symbol, *mapping, *p;
     char *str;
 
-    if (strlen(argv[i]) == 2) {
-        i++;
-        str = argv[i];
+    if (strlen(argv[*i]) == 2) {
+        *i = *i + 1;
+        str = argv[*i];
     } else {
-        str = argv[i] + 2;
+        str = argv[*i] + 2;
     }
 
     p = strtok(str, "=");
@@ -91,17 +75,61 @@ int add_arg_outfile(char **outfile, char *argv[], int *i) {
     return 0;
 }
 
+int setup_base_dir(char **base_dir, Hashmap **h, char *infile) {
+    if (infile == NULL) {
+        *base_dir = strdup(".");
+    } else {
+        int last = -1;
+        for (int i = strlen(infile) - 1; i >= 0 && last == -1; i--) {
+            if (infile[i] == '/') {
+                last = i - 1;
+            }
+        }
+        if (last >= 0) {
+            *base_dir = strndup(infile, last + 1);
+        } else {
+            *base_dir = strdup(".");
+        }
+    }
+
+    if (*base_dir == NULL) {
+        free_hashmap(*h);
+        free(*h);
+        return 12;
+    }
+    return 0;
+}
+
+int add_other_dir(char *dir, Node_t **dirs, Hashmap **h) {
+    Node_t *new_dir = malloc(sizeof(Node_t));
+    if (new_dir == NULL) {
+        free_hashmap(*h);
+        free(*h);
+        return 12;
+    }
+
+    new_dir -> data = strdup(dir);
+    new_dir -> next = NULL;
+
+    if (*dirs == NULL) {
+        *dirs = new_dir;
+    } else {
+        Node_t *p;
+        for (p = *dirs; p -> next; p = p -> next);
+        p -> next = new_dir;
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     Hashmap *h;
     if (setup_hashmap(&h)) {
         return 12;
     }
 
-    char *infile = NULL, *outfile = NULL;
-    Node_t *dirs;
-    if (setup_dirs(&dirs, &h)) {
-        return 12;
-    }
+    char *infile = NULL, *outfile = NULL, *base_dir;
+    Node_t *other_dirs = NULL;
     
 
     for (int i = 1; i < argc; i++) {
@@ -115,14 +143,19 @@ int main(int argc, char *argv[]) {
             }
 
         } else if (argv[i][1] == 'D') {
-            if (add_arg_define(argv, h, i)) {
+            if (add_arg_define(argv, h, &i)) {
                 free_hashmap(h);
                 free(h);
                 return 12;
             }
 
         } else if (argv[i][1] == 'I') {
-            
+            if (strlen(argv[i]) == 2) {
+                i++;
+                add_other_dir(argv[i], &other_dirs, &h);
+            } else {
+                add_other_dir(argv[i] + 2, &other_dirs, &h);
+            }
 
         } else if (argv[i][1] == 'o') {
             if (add_arg_outfile(&outfile, argv, &i)) {
@@ -135,10 +168,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if (setup_base_dir(&base_dir, &h, infile)) {
+        return 12;
+    }
+
     // printf("---%s---\n", infile);
     // printf("+++%s+++\n", outfile);
 
     // print_all(h);
+
+    print_list(other_dirs);
 
     free_hashmap(h);
     free(h);
