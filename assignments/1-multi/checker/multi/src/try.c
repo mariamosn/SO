@@ -3,44 +3,51 @@
 
 #include "hashmap.h"
 
-int main() {
-    Hashmap *h;
-    h = malloc(sizeof(Hashmap));
-    if (h == NULL) {
-        return 12;
-    }
+#define A B
+#define B 1
 
-    printf("%d\n", init_hashmap(h, 20));
-    puts("Done1");
+int main(void)
+{
+	printf("%d\n", A);
+	return 0;
+	Hashmap *h;
 
-    print_all(h);
-    puts("done2");
+	h = malloc(sizeof(Hashmap));
+	if (h == NULL)
+		return 12;
 
-    for (int i = 1; i <= 2; i++) {
-        char *k, *v;
-        size_t bufsize = 32;
-        k = malloc(bufsize * sizeof(char));
-        v = malloc(bufsize * sizeof(char));
+	printf("%d\n", init_hashmap(h, 20));
+	puts("Done1");
 
-        printf("Key:\n");
-        scanf("%s", k);
+	print_all(h);
+	puts("done2");
 
-        printf("Value:\n");
-        scanf("%s", v);
+	for (int i = 1; i <= 2; i++) {
+		char *k, *v;
+		size_t bufsize = 32;
 
-        put(h, k, v);
-    }
-    print_all(h);
-    puts("done3");
+		k = malloc(bufsize * sizeof(char));
+		v = malloc(bufsize * sizeof(char));
 
-    printf("---%s---\n", get(h, "pizza"));
-    printf("---%s---\n", get(h, "pancake"));
-    printf("%d\n", contains(h, "hidden"));
+		printf("Key:\n");
+		scanf("%s", k);
 
-    free_hashmap(h);
-    free(h);
-    
-    print_all(h);
+		printf("Value:\n");
+		scanf("%s", v);
 
-    return 0;
+		put(h, k, v);
+	}
+	print_all(h);
+	puts("done3");
+
+	printf("---%s---\n", get(h, "pizza"));
+	printf("---%s---\n", get(h, "pancake"));
+	printf("%d\n", contains(h, "hidden"));
+
+	free_hashmap(h);
+	free(h);
+
+	print_all(h);
+
+	return 0;
 }

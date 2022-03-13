@@ -4,145 +4,150 @@
 
 #include "hashmap.h"
 
-unsigned int hash_function_string(void *a) {
-    /*
-     * Credits: http://www.cse.yorku.ca/~oz/hash.html
-     */
-    unsigned char *puchar_a = (unsigned char*) a;
-    unsigned long hash = 5381;
-    int c;
+unsigned int hash_function_string(void *a)
+{
+	/*
+	 * Credits: http://www.cse.yorku.ca/~oz/hash.html
+	 */
+	unsigned char *puchar_a = (unsigned char *) a;
+	unsigned long hash = 5381;
+	int c;
 
-    while ((c = *puchar_a++)) {
-        hash = ((hash << 5u) + hash) + c; /* hash * 33 + c */
-    }
-    return hash;
+	while ((c = *puchar_a++))
+		hash = ((hash << 5u) + hash) + c; /* hash * 33 + c */
+
+	return hash;
 }
 
-int init_hashmap(Hashmap *h, int hmax) {
-    h -> buckets = malloc(hmax * sizeof(LinkedList));
-    if (!h -> buckets) {
-        return 12;
-    }
+int init_hashmap(Hashmap *h, int hmax)
+{
+	h->buckets = malloc(hmax * sizeof(LinkedList));
+	if (!h->buckets)
+		return 12;
 
-    for (int i = 0; i < hmax; i++) {
-        h -> buckets[i].head = NULL;
-    }
+	for (int i = 0; i < hmax; i++)
+		h->buckets[i].head = NULL;
 
-    h -> hmax = hmax;
-    return 0;
+	h->hmax = hmax;
+	return 0;
 }
 
-int put(Hashmap *h, char *key, char *value) {
-    int index = hash_function_string(key) % h -> hmax;
-    LinkedList *bucket = &(h -> buckets[index]);
-    Node *node_before = NULL;
+int put(Hashmap *h, char *key, char *value)
+{
+	int index = hash_function_string(key) % h->hmax;
+	LinkedList *bucket = &(h->buckets[index]);
+	Node *node_before = NULL;
 
-    for (Node *p = bucket -> head; p; p = p -> next) {
-        Pair *entry = p -> data;
-        if (strcmp(entry -> key, key) == 0) {
-            free(entry -> value);
-            entry -> value = strdup(value);
-            if (entry -> value == NULL) {
-                return 12;
-            }
-            return 0;
-        }
-        node_before = p;
-    }
+	for (Node *p = bucket->head; p; p = p->next) {
+		Pair *entry = p->data;
 
-    Node *new_node = malloc(sizeof(Node));
-    if (new_node == NULL) {
-        return 12;
-    }
-    new_node -> next = NULL;
+		if (strcmp(entry->key, key) == 0) {
+			free(entry->value);
+			entry->value = strdup(value);
+			if (entry->value == NULL)
+				return 12;
+			return 0;
+		}
+		node_before = p;
+	}
 
-    Pair *entry = malloc(sizeof(Pair));
-    if (entry == NULL) {
-        free(new_node);
-        return 12;
-    }
+	Node *new_node = malloc(sizeof(Node));
 
-    entry -> key = strdup(key);
-    if (entry -> key == NULL) {
-        free(new_node);
-        free(entry);
-        return 12;
-    }
+	if (new_node == NULL)
+		return 12;
+	new_node->next = NULL;
 
-    entry -> value = strdup(value);
-    if (entry -> value == NULL) {
-        free(new_node);
-        free(entry -> key);
-        free(entry);
-        return 12;
-    }
+	Pair *entry = malloc(sizeof(Pair));
 
-    new_node -> data = entry;
-    if (node_before) {
-        node_before -> next = new_node;
-    } else {
-        bucket -> head = new_node;
-    }
+	if (entry == NULL) {
+		free(new_node);
+		return 12;
+	}
 
-    return 0;
+	entry->key = strdup(key);
+	if (entry->key == NULL) {
+		free(new_node);
+		free(entry);
+		return 12;
+	}
+
+	entry->value = strdup(value);
+	if (entry->value == NULL) {
+		free(new_node);
+		free(entry->key);
+		free(entry);
+		return 12;
+	}
+
+	new_node->data = entry;
+	if (node_before)
+		node_before->next = new_node;
+	else
+		bucket->head = new_node;
+
+	return 0;
 }
 
-char* get(Hashmap *h, char *key) {
-    int index = hash_function_string(key) % h -> hmax;
-    LinkedList *bucket = &(h -> buckets[index]);
+char *get(Hashmap *h, char *key)
+{
+	int index = hash_function_string(key) % h->hmax;
+	LinkedList *bucket = &(h->buckets[index]);
 
-    if (bucket -> head == NULL) {
-        return NULL;
-    }
+	if (bucket->head == NULL)
+		return NULL;
 
-    for (Node *p = bucket -> head; p; p = p -> next) {
-        Pair *entry = p -> data;
-        if (strcmp(entry -> key, key) == 0) {
-            return entry -> value;
-        }
-    }
+	for (Node *p = bucket->head; p; p = p->next) {
+		Pair *entry = p->data;
 
-    return NULL;
+		if (strcmp(entry->key, key) == 0)
+			return entry->value;
+	}
+
+	return NULL;
 }
 
-int contains(Hashmap *h, char *key) {
-    if (get(h, key) == NULL) {
-        return 0;
-    }
-    return 1;
+int contains(Hashmap *h, char *key)
+{
+	if (get(h, key) == NULL)
+		return 0;
+	return 1;
 }
 
-void remove_ht_entry(Hashmap *h, char *key) {
+void remove_ht_entry(Hashmap *h, char *key)
+{
 
 }
 
-void free_hashmap(Hashmap *h) {
-    for (int i = 0; i < h -> hmax; i++) {
-        LinkedList *bucket = &(h -> buckets[i]);
-        for (Node *p = bucket -> head; p; ) {
-            free(p -> data -> key);
-            free(p -> data -> value);
-            free(p -> data);
-            Node *prev = p;
-            p = p -> next;
-            free(prev);
-        }
-    }
-    free(h -> buckets);
+void free_hashmap(Hashmap *h)
+{
+	for (int i = 0; i < h->hmax; i++) {
+		LinkedList *bucket = &(h->buckets[i]);
+
+		for (Node *p = bucket->head; p; ) {
+			free(p->data->key);
+			free(p->data->value);
+			free(p->data);
+			Node *prev = p;
+
+			p = p->next;
+			free(prev);
+		}
+	}
+	free(h->buckets);
 }
 
-void print_all(Hashmap *h) {
-    if (h == NULL) {
-        printf("NULL\n");
-        return;
-    } else {
-        for (int i = 0; i < h -> hmax; i++) {
-            LinkedList *bucket = &(h -> buckets[i]);
-            printf("bucket %d: ", i);
-            for (Node *p = bucket -> head; p; p = p -> next) {
-                printf("(%s, %s) ", p -> data -> key, p -> data -> value);
-            }
-            printf("\n");
-        }
-    }
+void print_all(Hashmap *h)
+{
+	if (h == NULL) {
+		printf("NULL\n");
+		return;
+	}
+	for (int i = 0; i < h->hmax; i++) {
+		LinkedList *bucket = &(h->buckets[i]);
+
+		printf("bucket %d: ", i);
+		for (Node *p = bucket->head; p; p = p->next)
+			printf("(%s, %s) ", p->data->key, p->data->value);
+		printf("\n");
+	}
 }

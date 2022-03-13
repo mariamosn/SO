@@ -2,29 +2,29 @@
 #define __HASHMAP_H
 
 typedef struct Pair {
-    char *key;
-    char *value;
+	char *key;
+	char *value;
 } Pair;
 
 typedef struct Node {
-    struct Node *next;
-    Pair *data;
+	struct Node *next;
+	Pair *data;
 } Node;
 
 typedef struct LinkedList {
-    Node *head;
+	Node *head;
 } LinkedList;
 
 typedef struct Hashmap {
-    LinkedList *buckets;
-    int hmax;
+	LinkedList *buckets;
+	int hmax;
 } Hashmap;
 
 int init_hashmap(Hashmap *h, int hmax);
 
 int put(Hashmap *h, char *key, char *value);
 
-char* get(Hashmap *h, char *key);
+char *get(Hashmap *h, char *key);
 
 int contains(Hashmap *h, char *key);
 
