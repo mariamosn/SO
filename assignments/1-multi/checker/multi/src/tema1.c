@@ -156,8 +156,61 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 		return -1;
 	}
 
-	while ((read = getline(&line, &len, in)) != -1)
-		fprintf(out, "%s", line);
+	while ((read = getline(&line, &len, in)) != -1) {
+		if (line[0] == '#') {
+			if (line[1] == 'i' && line[2] == 'n' && line[9] == '"') {
+				// include
+				char *file_to_include = line + 10;
+
+				file_to_include = strndup(file_to_include,
+											strlen(file_to_include) - 2);
+				if (file_to_include == NULL) {
+					free(line);
+					fclose(in);
+					fclose(out);
+					return 12;
+				}
+				// printf("---%s---\n", file_to_include);
+				FILE *file_incl;
+
+				// TODO!!!: aici trebuie cautat in locurile bune
+				char *path = calloc(LINE_LEN, sizeof(char));
+
+				if (!path) {
+					free(line);
+					fclose(in);
+					fclose(out);
+					free(file_to_include);
+					return 12;
+				}
+				strcpy(path, base_dir);
+				strcat(path, "/");
+				strcat(path, file_to_include);
+
+				file_incl = fopen(path, "r");
+				if (!file_incl) {
+					if (!other_dirs) {
+						free(line);
+						fclose(in);
+						fclose(out);
+						free(file_to_include);
+						free(path);
+						return -1;
+					}
+					// TODO : cauta prin celelalte path-uri
+				}
+
+				while ((read = getline(&line, &len, file_incl)) != -1) {
+					fprintf(out, "%s", line);
+				}
+				free(file_to_include);
+				free(path);
+				fclose(file_incl);
+			}
+		} else {
+			fprintf(out, "%s", line);
+		}
+	}
 
 	free(line);
 	if (in != stdin)
@@ -234,6 +287,7 @@ int main(int argc, char *argv[])
 	free_hashmap(h);
 	free(h);
 	free(base_dir);
+
 	for (Node_t *p = other_dirs; p; ) {
 		Node_t *crt = p;
 
