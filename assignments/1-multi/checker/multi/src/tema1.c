@@ -5,6 +5,7 @@
 #include "hashmap.h"
 
 #define LINE_LEN 257
+#define HASHMAP_SIZE 1000
 
 typedef struct Node_t {
 	struct Node_t *next;
@@ -23,7 +24,7 @@ int setup_hashmap(Hashmap **h)
 	*h = malloc(sizeof(Hashmap));
 	if (*h == NULL)
 		return 12;
-	if (init_hashmap(*h, 20)) {
+	if (init_hashmap(*h, HASHMAP_SIZE)) {
 		free(*h);
 		return 12;
 	}
@@ -158,8 +159,8 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 
 	while ((read = getline(&line, &len, in)) != -1) {
 		if (line[0] == '#') {
+			// #include
 			if (line[1] == 'i' && line[2] == 'n' && line[9] == '"') {
-				// include
 				char *file_to_include = line + 10;
 
 				file_to_include = strndup(file_to_include,
@@ -170,10 +171,8 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 					fclose(out);
 					return 12;
 				}
-				// printf("---%s---\n", file_to_include);
-				FILE *file_incl;
 
-				// TODO!!!: aici trebuie cautat in locurile bune
+				FILE *file_incl;
 				char *path = calloc(LINE_LEN, sizeof(char));
 
 				if (!path) {
@@ -189,7 +188,18 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 
 				file_incl = fopen(path, "r");
 				if (!file_incl) {
-					if (!other_dirs) {
+					int found = 0;
+
+					for (Node_t *p = other_dirs; p && !found; p = p->next) {
+						strcpy(path, p->data);
+						strcat(path, "/");
+						strcat(path, file_to_include);
+
+						file_incl = fopen(path, "r");
+						if (file_incl)
+							found = 1;
+					}
+					if (!found) {
 						free(line);
 						fclose(in);
 						fclose(out);
@@ -197,12 +207,11 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 						free(path);
 						return -1;
 					}
-					// TODO : cauta prin celelalte path-uri
 				}
 
-				while ((read = getline(&line, &len, file_incl)) != -1) {
+				while ((read = getline(&line, &len, file_incl)) != -1)
 					fprintf(out, "%s", line);
-				}
+
 				free(file_to_include);
 				free(path);
 				fclose(file_incl);
@@ -273,9 +282,7 @@ int main(int argc, char *argv[])
 
 	// printf("---%s---\n", infile);
 	// printf("+++%s+++\n", outfile);
-
 	// print_all(h);
-
 	// print_list(other_dirs);
 
 	// TODO: redenumeste
