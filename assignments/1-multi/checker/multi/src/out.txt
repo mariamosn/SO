@@ -1,0 +1,8 @@
+
+int main() {
+    printf("%s\n", ABC);
+    int x = BCD + 20;
+    printf("%x\n", x);
+
+    return 0;
+}

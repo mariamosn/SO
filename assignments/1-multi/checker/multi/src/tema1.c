@@ -5,7 +5,8 @@
 #include "hashmap.h"
 
 #define LINE_LEN 257
-#define HASHMAP_SIZE 1000
+#define HASHMAP_SIZE 20
+#define DEFINE_LEN 1000
 
 typedef struct Node_t {
 	struct Node_t *next;
@@ -126,6 +127,106 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 	return 0;
 }
 
+int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
+{
+	char *file_to_include = line + 10;
+	size_t len = LINE_LEN;
+	ssize_t read;
+
+	file_to_include = strndup(file_to_include,
+								strlen(file_to_include) - 2);
+	if (file_to_include == NULL)
+		return 12;
+
+	FILE *file_incl;
+	char *path = calloc(LINE_LEN, sizeof(char));
+
+	if (!path) {
+		free(file_to_include);
+		return 12;
+	}
+	strcpy(path, base_dir);
+	strcat(path, "/");
+	strcat(path, file_to_include);
+
+	file_incl = fopen(path, "r");
+	if (!file_incl) {
+		int found = 0;
+
+		for (Node_t *p = other_dirs; p && !found; p = p->next) {
+			strcpy(path, p->data);
+			strcat(path, "/");
+			strcat(path, file_to_include);
+
+			file_incl = fopen(path, "r");
+			if (file_incl)
+				found = 1;
+		}
+		if (!found) {
+			free(file_to_include);
+			free(path);
+			return -1;
+		}
+	}
+
+	while ((read = getline(&line, &len, file_incl)) != -1)
+		fprintf(out, "%s", line);
+
+	free(file_to_include);
+	free(path);
+	fclose(file_incl);
+
+	return 0;
+}
+
+int process_define(char *line, Hashmap *h, FILE *in)
+{
+	ssize_t read;
+	size_t len = LINE_LEN;
+
+	char *p, *key, *value, *val = calloc(DEFINE_LEN, sizeof(char));
+
+	if (!val)
+		return 12;
+
+	p = strtok(line, " ");
+	key = strdup(strtok(NULL, " "));
+	if (!key) {
+		free(val);
+		return 12;
+	}
+
+	value = strtok(NULL, "\n");
+	if (value[strlen(value) - 1] == '\\') {
+		// ceva magie aici
+		int done = 0;
+
+		strcpy(val, value);
+		val[strlen(val) - 1] = '\0';
+
+		while (!done && (read = getline(&line, &len, in)) != -1) {
+			for (p = line; *p == ' '; p++)
+				;
+			if (p[strlen(p) - 2] == '\\') {
+				p[strlen(p) - 2] = ' ';
+				p[strlen(p) - 1] = '\0';
+			} else {
+				p[strlen(p) - 1] = '\0';
+				done = 1;
+			}
+			strcat(val, p);
+		}
+
+		value = val;
+	}
+
+	int ret = put(h, key, value);
+
+	free(val);
+	free(key);
+	return ret;
+}
+
 int preprocess(char *infile, char *outfile, Hashmap *h,
 				char *base_dir, Node_t *other_dirs)
 {
@@ -161,60 +262,26 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 		if (line[0] == '#') {
 			// #include
 			if (line[1] == 'i' && line[2] == 'n' && line[9] == '"') {
-				char *file_to_include = line + 10;
+				int ret = process_include(line, base_dir, other_dirs, out);
 
-				file_to_include = strndup(file_to_include,
-											strlen(file_to_include) - 2);
-				if (file_to_include == NULL) {
+				if (ret) {
+					free(line);
+					fclose(in);
+					fclose(out);
+					return ret;
+				}
+
+			// #define
+			} else if (line[1] == 'd') {
+				int ret = process_define(line, h, in);
+
+				if (ret) {
 					free(line);
 					fclose(in);
 					fclose(out);
 					return 12;
 				}
 
-				FILE *file_incl;
-				char *path = calloc(LINE_LEN, sizeof(char));
-
-				if (!path) {
-					free(line);
-					fclose(in);
-					fclose(out);
-					free(file_to_include);
-					return 12;
-				}
-				strcpy(path, base_dir);
-				strcat(path, "/");
-				strcat(path, file_to_include);
-
-				file_incl = fopen(path, "r");
-				if (!file_incl) {
-					int found = 0;
-
-					for (Node_t *p = other_dirs; p && !found; p = p->next) {
-						strcpy(path, p->data);
-						strcat(path, "/");
-						strcat(path, file_to_include);
-
-						file_incl = fopen(path, "r");
-						if (file_incl)
-							found = 1;
-					}
-					if (!found) {
-						free(line);
-						fclose(in);
-						fclose(out);
-						free(file_to_include);
-						free(path);
-						return -1;
-					}
-				}
-
-				while ((read = getline(&line, &len, file_incl)) != -1)
-					fprintf(out, "%s", line);
-
-				free(file_to_include);
-				free(path);
-				fclose(file_incl);
 			}
 		} else {
 			fprintf(out, "%s", line);
@@ -287,6 +354,8 @@ int main(int argc, char *argv[])
 
 	// TODO: redenumeste
 	int ret = preprocess(infile, outfile, h, base_dir, other_dirs);
+
+	// print_all(h);
 
 	if (ret)
 		return ret;
