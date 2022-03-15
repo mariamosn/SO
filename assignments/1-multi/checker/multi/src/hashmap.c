@@ -115,7 +115,37 @@ int contains(Hashmap *h, char *key)
 
 void remove_ht_entry(Hashmap *h, char *key)
 {
+	int index = hash_function_string(key) % h->hmax;
+	LinkedList *bucket = &(h->buckets[index]);
 
+	if (bucket->head == NULL)
+		return;
+
+	if (strcmp(bucket->head->data->key, key) == 0) {
+		Node *to_remove = bucket->head;
+
+		bucket->head = to_remove->next;
+		free(to_remove->data->key);
+		free(to_remove->data->value);
+		free(to_remove->data);
+		free(to_remove);
+		return;
+	}
+
+	for (Node *p = bucket->head; p->next; p = p->next) {
+		Pair *entry = p->next->data;
+
+		if (strcmp(entry->key, key) == 0) {
+			Node *to_remove = p->next;
+
+			p->next = to_remove->next;
+			free(to_remove->data->key);
+			free(to_remove->data->value);
+			free(to_remove->data);
+			free(to_remove);
+			return;
+		}
+	}
 }
 
 void free_hashmap(Hashmap *h)

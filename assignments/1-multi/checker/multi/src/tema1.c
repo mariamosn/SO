@@ -169,8 +169,10 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 		}
 	}
 
-	while ((read = getline(&line, &len, file_incl)) != -1)
+	while ((read = getline(&line, &len, file_incl)) != -1) {
+		// TODO : si astea trebuie preprocesate cumva
 		fprintf(out, "%s", line);
+	}
 
 	free(file_to_include);
 	free(path);
@@ -198,7 +200,6 @@ int process_define(char *line, Hashmap *h, FILE *in)
 
 	value = strtok(NULL, "\n");
 	if (value[strlen(value) - 1] == '\\') {
-		// ceva magie aici
 		int done = 0;
 
 		strcpy(val, value);
@@ -225,6 +226,19 @@ int process_define(char *line, Hashmap *h, FILE *in)
 	free(val);
 	free(key);
 	return ret;
+}
+
+void process_undef(char *line, Hashmap *h, FILE *in)
+{
+	ssize_t read;
+	size_t len = LINE_LEN;
+
+	char *p, *key;
+
+	p = strtok(line, " ");
+	key = strtok(NULL, "\n ");
+
+	remove_ht_entry(h, key);
 }
 
 int preprocess(char *infile, char *outfile, Hashmap *h,
@@ -281,6 +295,39 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 					fclose(out);
 					return 12;
 				}
+
+			// #undef
+			} else if (line[1] == 'u') {
+				process_undef(line, h, in);
+
+			// #ifdef
+			} else if (line[1] == 'i' && line[2] == 'f' && line[3] == 'd') {
+				char *symbol;
+
+				symbol = strtok(line, " ");
+				symbol = strtok(NULL, "\n ");
+				if (contains(h, symbol)) {
+					// TODO: se baga liniile pana la #else sau #endif
+					int done = 0;
+
+					// while (!done && (read = getline(&line, &len, in)) != -1) {
+						// TODO : ahhhh
+					// }
+				} else {
+					// TODO: se baga liniile de la #else la #endif
+				}
+
+			// #ifndef
+			} else if (line[1] == 'i' && line[2] == 'f' && line[3] == 'n') {
+				char *symbol;
+
+				symbol = strtok(line, " ");
+				symbol = strtok(NULL, "\n ");
+				// if (!contains(h, symbol)) {
+					// TODO: se baga liniile pana la #else sau #endif
+				// } else {
+					// TODO: se baga liniile de la #else la #endif
+				// }
 
 			}
 		} else {
