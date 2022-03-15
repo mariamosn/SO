@@ -46,15 +46,12 @@ int add_arg_define(char *argv[], Hashmap *h, int *i)
 
 	p = strtok(str, "=");
 	symbol = p;
-	// printf("---%s---\n", symbol);
 
 	p = strtok(NULL, "=");
 	if (p != NULL)
 		mapping = p;
 	else
 		mapping = "";
-
-	// printf("+++%s+++\n", mapping);
 
 	if (symbol && put(h, symbol, mapping))
 		return 12;
@@ -65,7 +62,7 @@ int add_arg_define(char *argv[], Hashmap *h, int *i)
 int add_arg_outfile(char **outfile, char *argv[], int *i)
 {
 	if (*outfile != NULL)
-		return -1; // TODO
+		return -1;
 
 	if (strlen(argv[*i]) == 2) {
 		*i = *i + 1;
@@ -130,8 +127,6 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 {
 	char *file_to_include = line + 10;
-	size_t len = LINE_LEN;
-	ssize_t read;
 
 	file_to_include = strndup(file_to_include,
 								strlen(file_to_include) - 2);
@@ -169,7 +164,7 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 		}
 	}
 
-	while ((read = getline(&line, &len, file_incl)) != -1) {
+	while (fgets(line, LINE_LEN, file_incl)) {
 		// TODO : si astea trebuie preprocesate cumva
 		fprintf(out, "%s", line);
 	}
@@ -183,9 +178,6 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 
 int process_define(char *line, Hashmap *h, FILE *in)
 {
-	ssize_t read;
-	size_t len = LINE_LEN;
-
 	char *p, *key, *value, *val = calloc(DEFINE_LEN, sizeof(char));
 
 	if (!val)
@@ -205,7 +197,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 		strcpy(val, value);
 		val[strlen(val) - 1] = '\0';
 
-		while (!done && (read = getline(&line, &len, in)) != -1) {
+		while (!done && fgets(line, LINE_LEN, in)) {
 			for (p = line; *p == ' '; p++)
 				;
 			if (p[strlen(p) - 2] == '\\') {
@@ -241,97 +233,120 @@ void process_undef(char *line, Hashmap *h, FILE *in)
 	remove_ht_entry(h, key);
 }
 
+int process_if(char *line, Hashmap *h, FILE *in, FILE *out)
+{
+	int cond = 0;
+
+	// #ifdef
+	if (line[3] == 'd') {
+		char *symbol;
+
+		symbol = strtok(line, " ");
+		symbol = strtok(NULL, "\n ");
+		cond = contains(h, symbol);
+
+	// #ifndef
+	} else if (line[3] == 'n') {
+		char *symbol;
+
+		symbol = strtok(line, " ");
+		symbol = strtok(NULL, "\n ");
+		cond = 1 - contains(h, symbol);
+
+	// #if
+	} else {
+		char *symbol, *value;
+
+		symbol = strtok(line, " ");
+		symbol = strtok(NULL, "\n ");
+		value = get(h, symbol);
+
+		if (value && strcmp(value, "0") == 0)
+			cond = 0;
+		else
+			cond = 1;
+	}
+
+	// TODO : use cond to decide what to do next
+
+	return 0;
+}
+
+int init_preprocess(char **line, char *infile, char *outfile,
+					FILE **in, FILE **out)
+{
+	*line = calloc(LINE_LEN, sizeof(char));
+	if (*line == NULL)
+		return 12;
+	if (infile)
+		*in = fopen(infile, "r");
+	else
+		*in = stdin;
+	if (!(*in)) {
+		free(*line);
+		return -1;
+	}
+
+	if (outfile)
+		*out = fopen(outfile, "w");
+	else
+		*out = stdout;
+	if (!(*out)) {
+		free(*line);
+		if (*in != stdin)
+			fclose(*in);
+		return -1;
+	}
+
+	return 0;
+}
+
+int process_line(char *line, char *base_dir, Node_t *other_dirs,
+					FILE *in, FILE *out, Hashmap *h)
+{
+	if (line[0] == '#') {
+		// #include
+		if (line[1] == 'i' && line[2] == 'n' && line[9] == '"')
+			return process_include(line, base_dir, other_dirs, out);
+
+		// #define
+		else if (line[1] == 'd')
+			return process_define(line, h, in);
+
+		// #undef
+		else if (line[1] == 'u')
+			process_undef(line, h, in);
+
+		// if
+		else if (line[1] == 'i' && line[2] == 'f')
+			return process_if(line, h, in, out);
+
+	} else {
+		fprintf(out, "%s", line);
+	}
+
+	return 0;
+}
+
 int preprocess(char *infile, char *outfile, Hashmap *h,
 				char *base_dir, Node_t *other_dirs)
 {
 	FILE *in, *out;
 	char *line;
-	ssize_t read;
-	size_t len = LINE_LEN;
 
-	line = calloc(LINE_LEN, sizeof(char));
-	if (line == NULL)
-		return 12;
-	if (infile)
-		in = fopen(infile, "r");
-	else
-		in = stdin;
-	if (!in) {
-		free(line);
-		return -1;
-	}
+	int ret = init_preprocess(&line, infile, outfile, &in, &out);
 
-	if (outfile)
-		out = fopen(outfile, "w");
-	else
-		out = stdout;
-	if (!out) {
-		free(line);
-		if (in != stdin)
+	if (ret)
+		return ret;
+
+	while (fgets(line, LINE_LEN, in)) {
+		ret = process_line(line, base_dir, other_dirs, in, out, h);
+
+		if (ret) {
+			free(line);
 			fclose(in);
-		return -1;
-	}
-
-	while ((read = getline(&line, &len, in)) != -1) {
-		if (line[0] == '#') {
-			// #include
-			if (line[1] == 'i' && line[2] == 'n' && line[9] == '"') {
-				int ret = process_include(line, base_dir, other_dirs, out);
-
-				if (ret) {
-					free(line);
-					fclose(in);
-					fclose(out);
-					return ret;
-				}
-
-			// #define
-			} else if (line[1] == 'd') {
-				int ret = process_define(line, h, in);
-
-				if (ret) {
-					free(line);
-					fclose(in);
-					fclose(out);
-					return 12;
-				}
-
-			// #undef
-			} else if (line[1] == 'u') {
-				process_undef(line, h, in);
-
-			// #ifdef
-			} else if (line[1] == 'i' && line[2] == 'f' && line[3] == 'd') {
-				char *symbol;
-
-				symbol = strtok(line, " ");
-				symbol = strtok(NULL, "\n ");
-				if (contains(h, symbol)) {
-					// TODO: se baga liniile pana la #else sau #endif
-					int done = 0;
-
-					// while (!done && (read = getline(&line, &len, in)) != -1) {
-						// TODO : ahhhh
-					// }
-				} else {
-					// TODO: se baga liniile de la #else la #endif
-				}
-
-			// #ifndef
-			} else if (line[1] == 'i' && line[2] == 'f' && line[3] == 'n') {
-				char *symbol;
-
-				symbol = strtok(line, " ");
-				symbol = strtok(NULL, "\n ");
-				// if (!contains(h, symbol)) {
-					// TODO: se baga liniile pana la #else sau #endif
-				// } else {
-					// TODO: se baga liniile de la #else la #endif
-				// }
-
-			}
-		} else {
-			fprintf(out, "%s", line);
+			fclose(out);
+			return ret;
 		}
 	}
 
@@ -361,7 +376,7 @@ int main(int argc, char *argv[])
 			else if (outfile == NULL)
 				outfile = argv[i];
 			else
-				return -1; // TODO
+				return -1;
 
 		} else if (argv[i][1] == 'D') {
 			if (add_arg_define(argv, h, &i)) {
@@ -380,11 +395,10 @@ int main(int argc, char *argv[])
 
 		} else if (argv[i][1] == 'o') {
 			if (add_arg_outfile(&outfile, argv, &i))
-				return -1; // TODO
+				return -1;
 
 		} else {
-			return -1; // TODO
-
+			return -1;
 		}
 	}
 
@@ -394,18 +408,8 @@ int main(int argc, char *argv[])
 		return 12;
 	}
 
-	// printf("---%s---\n", infile);
-	// printf("+++%s+++\n", outfile);
-	// print_all(h);
-	// print_list(other_dirs);
-
 	// TODO: redenumeste
 	int ret = preprocess(infile, outfile, h, base_dir, other_dirs);
-
-	// print_all(h);
-
-	if (ret)
-		return ret;
 
 	free_hashmap(h);
 	free(h);
@@ -419,5 +423,5 @@ int main(int argc, char *argv[])
 		free(crt);
 	}
 
-	return 0;
+	return ret;
 }
