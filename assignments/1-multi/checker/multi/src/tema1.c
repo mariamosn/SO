@@ -124,7 +124,11 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 	return 0;
 }
 
-int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
+int process_line(char *line, char *base_dir, Node_t *other_dirs,
+					FILE *in, FILE *out, Hashmap *h);
+
+int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
+					Hashmap *h)
 {
 	char *file_to_include = line + 10;
 
@@ -166,7 +170,10 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 
 	while (fgets(line, LINE_LEN, file_incl)) {
 		// TODO : si astea trebuie preprocesate cumva
-		fprintf(out, "%s", line);
+		// fprintf(out, "%s", line);
+		int ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
+		if (ret)
+			return ret;
 	}
 
 	free(file_to_include);
@@ -420,7 +427,7 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs,
 	if (line[0] == '#') {
 		// #include
 		if (line[1] == 'i' && line[2] == 'n' && line[9] == '"')
-			return process_include(line, base_dir, other_dirs, out);
+			return process_include(line, base_dir, other_dirs, out, h);
 
 		// #define
 		else if (line[1] == 'd')
@@ -432,8 +439,7 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs,
 
 		// if
 		else if (line[1] == 'i' && line[2] == 'f')
-			// return process_if(line, h, in, out, base_dir, other_dirs);
-			return 0;
+			return process_if(line, h, in, out, base_dir, other_dirs);
 
 		// else if (line[1] == 'e')
 		//	return SWITCH;
