@@ -7,6 +7,7 @@
 #define LINE_LEN 257
 #define HASHMAP_SIZE 20
 #define DEFINE_LEN 1000
+#define EXIT_IF 7
 
 typedef struct Node_t {
 	struct Node_t *next;
@@ -169,11 +170,13 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	}
 
 	while (fgets(line, LINE_LEN, file_incl)) {
-		// TODO : si astea trebuie preprocesate cumva
-		// fprintf(out, "%s", line);
 		int ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
-		if (ret)
+		if (ret) {
+			free(file_to_include);
+			free(path);
+			fclose(file_incl);
 			return ret;
+		}
 	}
 
 	free(file_to_include);
@@ -320,6 +323,31 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 	// THIS IS HIGHLY EXPERIMENTAL!!!!!!!!!!!!
 	// TODO : use cond to decide what to do next
 	// (might drive myself insane over this part)
+
+	if (!cond) {
+		while (fgets(line, LINE_LEN, in)) {
+			if (strncmp(line, "#elif", 5) == 0)
+				return process_if(line + 2, h, in, out, base_dir, other_dirs);
+			else if (strncmp(line, "#else", 5) == 0)
+				break;
+			else if (strncmp(line, "#endif", 6) == 0)
+				return 0;
+		}
+	}
+
+	int res = 0;
+	while (fgets(line, LINE_LEN, in) && res != EXIT_IF) {
+		res = process_line(line, base_dir, other_dirs, in, out, h);
+		if (res && res != EXIT_IF)
+			return res;
+	}
+
+
+
+
+
+
+
 	/*
 	if (cond) {
 		puts("HERE");
