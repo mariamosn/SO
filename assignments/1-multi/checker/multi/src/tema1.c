@@ -176,6 +176,46 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out)
 	return 0;
 }
 
+void change_line_inplace(char *line, Hashmap *h)
+{
+	int quote = 0;
+	char new_line[LINE_LEN + 10] = {0};
+
+	for (int i = 0; i < strlen(line); i++) {
+		if (!((line[i] >= 'a' && line[i] <= 'z') ||
+				(line[i] >= 'A' && line[i] <= 'Z')) ||
+				quote) {
+			sprintf(new_line + strlen(new_line), "%c", line[i]);
+			if (line[i] == '"')
+				quote = 1 - quote;
+		} else {
+			char var_candidate[LINE_LEN];
+
+			for (int j = i; j < strlen(line); j++) {
+				if (!((line[j] >= 'a' && line[j] <= 'z') ||
+						(line[j] >= 'A' && line[j] <= 'Z') ||
+						(line[j] >= '0' && line[j] <= '9') ||
+						line[j] == '_')) {
+					var_candidate[j - i] = '\0';
+					char *replace = get(h, var_candidate);
+
+					if (replace)
+						sprintf(new_line + strlen(new_line), "%s%c", replace,
+								line[j]);
+					else
+						sprintf(new_line + strlen(new_line), "%s%c",
+								var_candidate, line[j]);
+					i = j;
+					break;
+				} else {
+					var_candidate[j - i] = line[j];
+				}
+			}
+		}
+	}
+	strcpy(line, new_line);
+}
+
 int process_define(char *line, Hashmap *h, FILE *in)
 {
 	char *p, *key, *value, *val = calloc(DEFINE_LEN, sizeof(char));
@@ -213,6 +253,8 @@ int process_define(char *line, Hashmap *h, FILE *in)
 		value = val;
 	}
 
+	change_line_inplace(value, h);
+
 	int ret = put(h, key, value);
 
 	free(val);
@@ -233,7 +275,8 @@ void process_undef(char *line, Hashmap *h, FILE *in)
 	remove_ht_entry(h, key);
 }
 
-int process_if(char *line, Hashmap *h, FILE *in, FILE *out)
+int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
+				char *base_dir, Node_t *other_dirs)
 {
 	int cond = 0;
 
@@ -267,8 +310,42 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out)
 			cond = 1;
 	}
 
+	// THIS IS HIGHLY EXPERIMENTAL!!!!!!!!!!!!
 	// TODO : use cond to decide what to do next
+	// (might drive myself insane over this part)
+	/*
+	if (cond) {
+		puts("HERE");
+		int res = 0;
+		while (fgets(line, LINE_LEN, in) && res != SWITCH) {
+			// printf("---\n%s\n", line);
+			res = process_line(line, base_dir, other_dirs, in, out, h);
+			// printf("+++%d\n%s\n", res, line);
 
+			// skip_line(...)
+		}
+	} else {
+		int done = 0;
+		while (fgets(line, LINE_LEN, in) && !done) {
+			if (strncmp(line, "#elif", 5) == 0) {
+				return process_if(line + 2, h, in, out, base_dir, other_dirs);
+			} else if (strncmp(line, "#else", 5) == 0) {
+				while (fgets(line, LINE_LEN, in)) {
+					if (strncmp(line, "#endif", 6) == 0) {
+						return 0;
+					} else {
+						int res = process_line(line, base_dir, other_dirs,
+												in, out, h);
+						if (res)
+							return res;
+					}
+				}
+			} else if (strncmp(line, "#endif", 6) == 0) {
+				return 0;
+			}
+		}
+	}
+	*/
 	return 0;
 }
 
@@ -301,6 +378,42 @@ int init_preprocess(char **line, char *infile, char *outfile,
 	return 0;
 }
 
+void change_line(char *line, FILE *out, Hashmap *h)
+{
+	int quote = 0;
+
+	for (int i = 0; i < strlen(line); i++) {
+		if (!((line[i] >= 'a' && line[i] <= 'z') ||
+				(line[i] >= 'A' && line[i] <= 'Z')) ||
+				quote) {
+			fprintf(out, "%c", line[i]);
+			if (line[i] == '"')
+				quote = 1 - quote;
+		} else {
+			char var_candidate[LINE_LEN];
+
+			for (int j = i; j < strlen(line); j++) {
+				if (!((line[j] >= 'a' && line[j] <= 'z') ||
+						(line[j] >= 'A' && line[j] <= 'Z') ||
+						(line[j] >= '0' && line[j] <= '9') ||
+						line[j] == '_')) {
+					var_candidate[j - i] = '\0';
+					char *replace = get(h, var_candidate);
+
+					if (replace)
+						fprintf(out, "%s%c", replace, line[j]);
+					else
+						fprintf(out, "%s%c", var_candidate, line[j]);
+					i = j;
+					break;
+				} else {
+					var_candidate[j - i] = line[j];
+				}
+			}
+		}
+	}
+}
+
 int process_line(char *line, char *base_dir, Node_t *other_dirs,
 					FILE *in, FILE *out, Hashmap *h)
 {
@@ -319,10 +432,14 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs,
 
 		// if
 		else if (line[1] == 'i' && line[2] == 'f')
-			return process_if(line, h, in, out);
+			// return process_if(line, h, in, out, base_dir, other_dirs);
+			return 0;
+
+		// else if (line[1] == 'e')
+		//	return SWITCH;
 
 	} else {
-		fprintf(out, "%s", line);
+		change_line(line, out, h);
 	}
 
 	return 0;
