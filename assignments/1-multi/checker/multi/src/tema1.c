@@ -205,8 +205,9 @@ void change_line_inplace(char *line, Hashmap *h)
 				quote = 1 - quote;
 		} else {
 			char var_candidate[LINE_LEN];
+			int j;
 
-			for (int j = i; j < strlen(line); j++) {
+			for (j = i; j < strlen(line); j++) {
 				if (!((line[j] >= 'a' && line[j] <= 'z') ||
 						(line[j] >= 'A' && line[j] <= 'Z') ||
 						(line[j] >= '0' && line[j] <= '9') ||
@@ -225,6 +226,17 @@ void change_line_inplace(char *line, Hashmap *h)
 				}
 				var_candidate[j - i] = line[j];
 			}
+			if (j == strlen(line)) {
+				var_candidate[j - i] = '\0';
+				char *replace = get(h, var_candidate);
+
+				if (replace)
+					sprintf(new_line + strlen(new_line), "%s", replace);
+				else
+					sprintf(new_line + strlen(new_line), "%s",
+					 		var_candidate);
+				break;
+			}
 		}
 	}
 	strcpy(line, new_line);
@@ -238,7 +250,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 		return 12;
 
 	p = strtok(line, " ");
-	key = strdup(strtok(NULL, " "));
+	key = strdup(strtok(NULL, "\n "));
 	if (!key) {
 		free(val);
 		return 12;
@@ -266,9 +278,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 
 		value = val;
 	}
-
 	change_line_inplace(value, h);
-
 	int ret = put(h, key, value);
 
 	free(val);
