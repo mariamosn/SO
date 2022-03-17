@@ -83,7 +83,6 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 	int last, i;
 
 	if (infile == NULL) {
-		// *base_dir = strdup(".");
 		*base_dir = calloc(2, sizeof(char));
 		if (*base_dir)
 			strncpy(*base_dir, ".", 1);
@@ -99,7 +98,6 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 			if (*base_dir)
 				strncpy(*base_dir, infile, last + 1);
 		} else {
-			// *base_dir = strdup(".");
 			*base_dir = calloc(2, sizeof(char));
 			if (*base_dir)
 				strncpy(*base_dir, ".", 1);
@@ -124,7 +122,6 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 		return 12;
 	}
 
-	// new_dir->data = strdup(dir);
 	new_dir->data = calloc(strlen(dir) + 1, sizeof(char));
 	if (new_dir->data) {
 		strncpy(new_dir->data, dir, strlen(dir));
@@ -157,8 +154,6 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	int found, ret;
 	Node_t *p;
 
-	// file_to_include = strndup(file_to_include,
-	//							strlen(file_to_include) - 2);
 	file_to_include = calloc(strlen(file_to_include_name) - 1, sizeof(char));
 	if (file_to_include == NULL)
 		return 12;
@@ -274,7 +269,6 @@ int process_define(char *line, Hashmap *h, FILE *in)
 	p = strtok(line, " ");
 	p = strtok(NULL, "\n ");
 	key = calloc(strlen(p) + 1, sizeof(char));
-	// key = strdup(strtok(NULL, "\n "));
 	if (!key) {
 		free(val);
 		return 12;
