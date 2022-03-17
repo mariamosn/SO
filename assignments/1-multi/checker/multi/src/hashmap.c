@@ -5,17 +5,13 @@
 
 #include "hashmap.h"
 
-unsigned int hash_function_string(void *a)
+// Credits: http://www.cse.yorku.ca/~oz/hash.html
+unsigned int hash_function_string(char *a)
 {
-	/*
-	 * Credits: http://www.cse.yorku.ca/~oz/hash.html
-	 */
-	unsigned char *puchar_a = (unsigned char *) a;
-	unsigned long hash = 5381;
-	int c;
+	unsigned int hash = 5381, i;
 
-	while ((c = *puchar_a++))
-		hash = ((hash << 5u) + hash) + c; /* hash * 33 + c */
+	for (i = 0; i < (int) strlen(a); i++)
+		hash = hash * 33 + a[i];
 
 	return hash;
 }
@@ -58,7 +54,6 @@ int put(Hashmap *h, char *key, char *value)
 	}
 
 	new_node = malloc(sizeof(Node));
-
 	if (new_node == NULL)
 		return 12;
 	new_node->next = NULL;

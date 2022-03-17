@@ -6,7 +6,7 @@
 #include "hashmap.h"
 
 #define LINE_LEN 257
-#define HASHMAP_SIZE 20
+#define HASHMAP_SIZE 100
 #define DEFINE_LEN 1000
 #define EXIT_IF 7
 #define SKIP 8
@@ -78,7 +78,7 @@ int add_arg_outfile(char **outfile, char *argv[], int *i)
 	return 0;
 }
 
-int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
+int setup_base_dir(char **base_dir, char *infile)
 {
 	int last, i;
 
@@ -104,11 +104,9 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 		}
 	}
 
-	if (*base_dir == NULL) {
-		free_hashmap(*h);
-		free(*h);
+	if (*base_dir == NULL)
 		return 12;
-	}
+
 	return 0;
 }
 
@@ -581,7 +579,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (setup_base_dir(&base_dir, &h, infile)) {
+	if (setup_base_dir(&base_dir, infile)) {
 		free_hashmap(h);
 		free(h);
 		return 12;
