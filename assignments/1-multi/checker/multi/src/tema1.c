@@ -126,8 +126,8 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 	return 0;
 }
 
-int process_line(char *line, char *base_dir, Node_t *other_dirs,
-					FILE *in, FILE *out, Hashmap *h);
+int process_line(char *line, char *base_dir, Node_t *other_dirs, FILE * in,
+					FILE * out, Hashmap *h);
 
 int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 					Hashmap *h)
@@ -172,6 +172,7 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 
 	while (fgets(line, LINE_LEN, file_incl)) {
 		int ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
+
 		if (ret) {
 			free(file_to_include);
 			free(path);
@@ -218,9 +219,8 @@ void change_line_inplace(char *line, Hashmap *h)
 								var_candidate, line[j]);
 					i = j;
 					break;
-				} else {
-					var_candidate[j - i] = line[j];
 				}
+				var_candidate[j - i] = line[j];
 			}
 		}
 	}
@@ -277,7 +277,6 @@ void process_undef(char *line, Hashmap *h, FILE *in)
 {
 	ssize_t read;
 	size_t len = LINE_LEN;
-
 	char *p, *key;
 
 	p = strtok(line, " ");
@@ -286,7 +285,8 @@ void process_undef(char *line, Hashmap *h, FILE *in)
 	remove_ht_entry(h, key);
 }
 
-void skip_lines(char *line, FILE *in) {
+void skip_lines(char *line, FILE *in)
+{
 	int inner_ifs = 0;
 
 	while (fgets(line, LINE_LEN, in)) {
@@ -336,10 +336,6 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 			cond = 1;
 	}
 
-	// THIS IS HIGHLY EXPERIMENTAL!!!!!!!!!!!!
-	// TODO : use cond to decide what to do next
-	// (might drive myself insane over this part)
-
 	if (!cond) {
 		while (fgets(line, LINE_LEN, in)) {
 			if (strncmp(line, "#elif", 5) == 0)
@@ -352,6 +348,7 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 	}
 
 	int res = 0;
+
 	while (fgets(line, LINE_LEN, in) && res != EXIT_IF) {
 		res = process_line(line, base_dir, other_dirs, in, out, h);
 		if (res && res != EXIT_IF && res != SKIP)
@@ -422,9 +419,8 @@ void change_line(char *line, FILE *out, Hashmap *h)
 						fprintf(out, "%s%c", var_candidate, line[j]);
 					i = j;
 					break;
-				} else {
-					var_candidate[j - i] = line[j];
 				}
+				var_candidate[j - i] = line[j];
 			}
 		}
 	}
