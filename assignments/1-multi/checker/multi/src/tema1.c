@@ -158,7 +158,7 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	Node_t *p;
 
 	// file_to_include = strndup(file_to_include,
-	// 							strlen(file_to_include) - 2);
+	//							strlen(file_to_include) - 2);
 	file_to_include = calloc(strlen(file_to_include_name) - 1, sizeof(char));
 	if (file_to_include == NULL)
 		return 12;
@@ -220,7 +220,7 @@ void change_line_inplace(char *line, Hashmap *h)
 	if (!line)
 		return;
 
-	for (i = 0; i < strlen(line); i++) {
+	for (i = 0; i < (int) strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
 				(line[i] >= 'A' && line[i] <= 'Z') ||
 				line[i] == '_') ||
@@ -229,7 +229,7 @@ void change_line_inplace(char *line, Hashmap *h)
 			if (line[i] == '"')
 				quote = 1 - quote;
 		} else {
-			for (j = i; j < strlen(line); j++) {
+			for (j = i; j < (int) strlen(line); j++) {
 				if (!((line[j] >= 'a' && line[j] <= 'z') ||
 						(line[j] >= 'A' && line[j] <= 'Z') ||
 						(line[j] >= '0' && line[j] <= '9') ||
@@ -310,7 +310,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 	return ret;
 }
 
-void process_undef(char *line, Hashmap *h, FILE *in)
+void process_undef(char *line, Hashmap *h)
 {
 	char *p, *key;
 
@@ -426,7 +426,7 @@ void change_line(char *line, FILE *out, Hashmap *h)
 	int quote = 0, i, j;
 	char var_candidate[LINE_LEN], *replace;
 
-	for (i = 0; i < strlen(line); i++) {
+	for (i = 0; i < (int) strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
 				(line[i] >= 'A' && line[i] <= 'Z') ||
 				line[i] == '_') ||
@@ -435,7 +435,7 @@ void change_line(char *line, FILE *out, Hashmap *h)
 			if (line[i] == '"')
 				quote = 1 - quote;
 		} else {
-			for (j = i; j < strlen(line); j++) {
+			for (j = i; j < (int) strlen(line); j++) {
 				if (!((line[j] >= 'a' && line[j] <= 'z') ||
 						(line[j] >= 'A' && line[j] <= 'Z') ||
 						(line[j] >= '0' && line[j] <= '9') ||
@@ -470,7 +470,7 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs,
 
 		// #undef
 		else if (line[1] == 'u')
-			process_undef(line, h, in);
+			process_undef(line, h);
 
 		// if
 		else if (line[1] == 'i' && line[2] == 'f')
