@@ -17,8 +17,10 @@ typedef struct Node_t {
 
 void print_list(Node_t *head)
 {
+	Node_t *p;
+
 	printf("Dirs:\n");
-	for (Node_t *p = head; p; p = p->next)
+	for (p = head; p; p = p->next)
 		printf("%s\n", p->data);
 }
 
@@ -77,12 +79,14 @@ int add_arg_outfile(char **outfile, char *argv[], int *i)
 
 int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 {
+	int last, i;
+
 	if (infile == NULL) {
 		*base_dir = strdup(".");
 	} else {
-		int last = -1;
+		last = -1;
 
-		for (int i = strlen(infile) - 1; i >= 0 && last == -1; i--) {
+		for (i = strlen(infile) - 1; i >= 0 && last == -1; i--) {
 			if (infile[i] == '/')
 				last = i - 1;
 		}
@@ -102,7 +106,7 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 
 int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 {
-	Node_t *new_dir = malloc(sizeof(Node_t));
+	Node_t *new_dir = malloc(sizeof(Node_t)), *p;
 
 	if (new_dir == NULL) {
 		free_hashmap(*h);
@@ -116,8 +120,6 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 	if (*dirs == NULL) {
 		*dirs = new_dir;
 	} else {
-		Node_t *p;
-
 		for (p = *dirs; p->next; p = p->next)
 			;
 		p->next = new_dir;
@@ -132,16 +134,17 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs, FILE * in,
 int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 					Hashmap *h)
 {
-	char *file_to_include = line + 10;
+	char *file_to_include = line + 10, *path;
+	FILE *file_incl;
+	int found, ret;
+	Node_t *p;
 
 	file_to_include = strndup(file_to_include,
 								strlen(file_to_include) - 2);
 	if (file_to_include == NULL)
 		return 12;
 
-	FILE *file_incl;
-	char *path = calloc(LINE_LEN, sizeof(char));
-
+	path = calloc(LINE_LEN, sizeof(char));
 	if (!path) {
 		free(file_to_include);
 		return 12;
@@ -152,9 +155,9 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 
 	file_incl = fopen(path, "r");
 	if (!file_incl) {
-		int found = 0;
+		found = 0;
 
-		for (Node_t *p = other_dirs; p && !found; p = p->next) {
+		for (p = other_dirs; p && !found; p = p->next) {
 			strcpy(path, p->data);
 			strcat(path, "/");
 			strcat(path, file_to_include);
@@ -171,7 +174,7 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	}
 
 	while (fgets(line, LINE_LEN, file_incl)) {
-		int ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
+		ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
 
 		if (ret) {
 			free(file_to_include);
@@ -190,12 +193,13 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 
 void change_line_inplace(char *line, Hashmap *h)
 {
+	int quote = 0, i, j;
+	char new_line[LINE_LEN + 10] = {0}, var_candidate[LINE_LEN], *replace;
+
 	if (!line)
 		return;
-	int quote = 0;
-	char new_line[LINE_LEN + 10] = {0};
 
-	for (int i = 0; i < strlen(line); i++) {
+	for (i = 0; i < strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
 				(line[i] >= 'A' && line[i] <= 'Z') ||
 				line[i] == '_') ||
@@ -204,16 +208,13 @@ void change_line_inplace(char *line, Hashmap *h)
 			if (line[i] == '"')
 				quote = 1 - quote;
 		} else {
-			char var_candidate[LINE_LEN];
-			int j;
-
 			for (j = i; j < strlen(line); j++) {
 				if (!((line[j] >= 'a' && line[j] <= 'z') ||
 						(line[j] >= 'A' && line[j] <= 'Z') ||
 						(line[j] >= '0' && line[j] <= '9') ||
 						line[j] == '_')) {
 					var_candidate[j - i] = '\0';
-					char *replace = get(h, var_candidate);
+					replace = get(h, var_candidate);
 
 					if (replace)
 						sprintf(new_line + strlen(new_line), "%s%c", replace,
@@ -228,7 +229,7 @@ void change_line_inplace(char *line, Hashmap *h)
 			}
 			if (j == strlen(line)) {
 				var_candidate[j - i] = '\0';
-				char *replace = get(h, var_candidate);
+				replace = get(h, var_candidate);
 
 				if (replace)
 					sprintf(new_line + strlen(new_line), "%s", replace);
@@ -244,6 +245,7 @@ void change_line_inplace(char *line, Hashmap *h)
 int process_define(char *line, Hashmap *h, FILE *in)
 {
 	char *p, *key, *value, *val = calloc(DEFINE_LEN, sizeof(char));
+	int done, ret;
 
 	if (!val)
 		return 12;
@@ -257,8 +259,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 
 	value = strtok(NULL, "\n");
 	if (value && value[strlen(value) - 1] == '\\') {
-		int done = 0;
-
+		done = 0;
 		strcpy(val, value);
 		val[strlen(val) - 1] = '\0';
 
@@ -278,7 +279,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 		value = val;
 	}
 	change_line_inplace(value, h);
-	int ret = put(h, key, value);
+	ret = put(h, key, value);
 
 	free(val);
 	free(key);
@@ -316,28 +317,23 @@ void skip_lines(char *line, FILE *in)
 int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 				char *base_dir, Node_t *other_dirs)
 {
-	int cond = 0;
+	int cond = 0, res;
+	char *symbol, *value;
 
 	// #ifdef
 	if (line[3] == 'd') {
-		char *symbol;
-
 		symbol = strtok(line, " ");
 		symbol = strtok(NULL, "\n ");
 		cond = contains(h, symbol);
 
 	// #ifndef
 	} else if (line[3] == 'n') {
-		char *symbol;
-
 		symbol = strtok(line, " ");
 		symbol = strtok(NULL, "\n ");
 		cond = 1 - contains(h, symbol);
 
 	// #if
 	} else {
-		char *symbol, *value;
-
 		symbol = strtok(line, " ");
 		symbol = strtok(NULL, "\n ");
 		value = get(h, symbol);
@@ -359,7 +355,7 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 		}
 	}
 
-	int res = 0;
+	res = 0;
 
 	while (fgets(line, LINE_LEN, in) && res != EXIT_IF) {
 		res = process_line(line, base_dir, other_dirs, in, out, h);
@@ -405,9 +401,10 @@ int init_preprocess(char **line, char *infile, char *outfile,
 
 void change_line(char *line, FILE *out, Hashmap *h)
 {
-	int quote = 0;
+	int quote = 0, i, j;
+	char var_candidate[LINE_LEN], *replace;
 
-	for (int i = 0; i < strlen(line); i++) {
+	for (i = 0; i < strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
 				(line[i] >= 'A' && line[i] <= 'Z') ||
 				line[i] == '_') ||
@@ -416,15 +413,13 @@ void change_line(char *line, FILE *out, Hashmap *h)
 			if (line[i] == '"')
 				quote = 1 - quote;
 		} else {
-			char var_candidate[LINE_LEN];
-
-			for (int j = i; j < strlen(line); j++) {
+			for (j = i; j < strlen(line); j++) {
 				if (!((line[j] >= 'a' && line[j] <= 'z') ||
 						(line[j] >= 'A' && line[j] <= 'Z') ||
 						(line[j] >= '0' && line[j] <= '9') ||
 						line[j] == '_')) {
 					var_candidate[j - i] = '\0';
-					char *replace = get(h, var_candidate);
+					replace = get(h, var_candidate);
 
 					if (replace)
 						fprintf(out, "%s%c", replace, line[j]);
@@ -479,7 +474,6 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 {
 	FILE *in, *out;
 	char *line;
-
 	int ret = init_preprocess(&line, infile, outfile, &in, &out);
 
 	if (ret)
@@ -507,15 +501,15 @@ int preprocess(char *infile, char *outfile, Hashmap *h,
 int main(int argc, char *argv[])
 {
 	Hashmap *h;
+	char *infile = NULL, *outfile = NULL, *base_dir;
+	Node_t *other_dirs = NULL, *p, *crt;
+	int i, ret;
 
 	if (setup_hashmap(&h))
 		return 12;
 
-	char *infile = NULL, *outfile = NULL, *base_dir;
-	Node_t *other_dirs = NULL;
-
 	// dealing with args
-	for (int i = 1; i < argc; i++) {
+	for (i = 1; i < argc; i++) {
 		if (argv[i][0] != '-') {
 			if (infile == NULL)
 				infile = argv[i];
@@ -555,15 +549,14 @@ int main(int argc, char *argv[])
 	}
 
 	// TODO: redenumeste
-	int ret = preprocess(infile, outfile, h, base_dir, other_dirs);
+	ret = preprocess(infile, outfile, h, base_dir, other_dirs);
 
 	free_hashmap(h);
 	free(h);
 	free(base_dir);
 
-	for (Node_t *p = other_dirs; p; ) {
-		Node_t *crt = p;
-
+	for (p = other_dirs; p; ) {
+		crt = p;
 		p = p->next;
 		free(crt->data);
 		free(crt);
