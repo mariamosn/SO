@@ -71,7 +71,10 @@ int put(Hashmap *h, char *key, char *value)
 		return 12;
 	}
 
-	entry->value = strdup(value);
+	if (value)
+		entry->value = strdup(value);
+	else
+		entry->value = strdup("");
 	if (entry->value == NULL) {
 		free(new_node);
 		free(entry->key);
