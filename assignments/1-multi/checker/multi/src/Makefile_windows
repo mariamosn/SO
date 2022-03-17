@@ -1,0 +1,14 @@
+CFLAGS=/nologo /W4 /EHsc /Za
+
+build: so-cpp.exe
+
+so-cpp.exe: tema1.obj hashmap.obj
+	$(CPP) $(CFLAGS) /Fe$@ S**
+
+tema1.obj: tema1.c
+
+hashmap.obj: hashmap.c hashmap.h
+
+clean:
+	del /f /q *.obj *.exe
+
