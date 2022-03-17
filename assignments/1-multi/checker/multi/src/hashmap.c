@@ -159,8 +159,9 @@ void remove_ht_entry(Hashmap *h, char *key)
 void free_hashmap(Hashmap *h)
 {
 	Node *p, *prev;
+	int i;
 
-	for (int i = 0; i < h->hmax; i++) {
+	for (i = 0; i < h->hmax; i++) {
 		LinkedList *bucket = &(h->buckets[i]);
 
 		for (p = bucket->head; p; ) {
@@ -179,12 +180,13 @@ void free_hashmap(Hashmap *h)
 void print_all(Hashmap *h)
 {
 	Node *p;
+	int i;
 
 	if (h == NULL) {
 		printf("NULL\n");
 		return;
 	}
-	for (int i = 0; i < h->hmax; i++) {
+	for (i = 0; i < h->hmax; i++) {
 		LinkedList *bucket = &(h->buckets[i]);
 
 		printf("bucket %d: ", i);
