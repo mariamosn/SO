@@ -190,12 +190,15 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 
 void change_line_inplace(char *line, Hashmap *h)
 {
+	if (!line)
+		return;
 	int quote = 0;
 	char new_line[LINE_LEN + 10] = {0};
 
 	for (int i = 0; i < strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
-				(line[i] >= 'A' && line[i] <= 'Z')) ||
+				(line[i] >= 'A' && line[i] <= 'Z') ||
+				line[i] == '_') ||
 				quote) {
 			sprintf(new_line + strlen(new_line), "%c", line[i]);
 			if (line[i] == '"')
@@ -242,7 +245,7 @@ int process_define(char *line, Hashmap *h, FILE *in)
 	}
 
 	value = strtok(NULL, "\n");
-	if (value[strlen(value) - 1] == '\\') {
+	if (value && value[strlen(value) - 1] == '\\') {
 		int done = 0;
 
 		strcpy(val, value);
@@ -397,7 +400,8 @@ void change_line(char *line, FILE *out, Hashmap *h)
 
 	for (int i = 0; i < strlen(line); i++) {
 		if (!((line[i] >= 'a' && line[i] <= 'z') ||
-				(line[i] >= 'A' && line[i] <= 'Z')) ||
+				(line[i] >= 'A' && line[i] <= 'Z') ||
+				line[i] == '_') ||
 				quote) {
 			fprintf(out, "%c", line[i]);
 			if (line[i] == '"')
