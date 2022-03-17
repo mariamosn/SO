@@ -90,10 +90,13 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 			if (infile[i] == '/')
 				last = i - 1;
 		}
-		if (last >= 0)
-			*base_dir = strndup(infile, last + 1);
-		else
+		if (last >= 0) {
+			*base_dir = calloc(last + 2, sizeof(char));
+			if (*base_dir)
+				strncpy(*base_dir, infile, last + 1);
+		} else {
 			*base_dir = strdup(".");
+		}
 	}
 
 	if (*base_dir == NULL) {
@@ -134,15 +137,18 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs, FILE * in,
 int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 					Hashmap *h)
 {
-	char *file_to_include = line + 10, *path;
+	char *file_to_include_name = line + 10, *path, *file_to_include;
 	FILE *file_incl;
 	int found, ret;
 	Node_t *p;
 
-	file_to_include = strndup(file_to_include,
-								strlen(file_to_include) - 2);
+	// file_to_include = strndup(file_to_include,
+	// 							strlen(file_to_include) - 2);
+	file_to_include = calloc(strlen(file_to_include_name) - 1, sizeof(char));
 	if (file_to_include == NULL)
 		return 12;
+	strncpy(file_to_include, file_to_include_name,
+			strlen(file_to_include_name) - 2);
 
 	path = calloc(LINE_LEN, sizeof(char));
 	if (!path) {
@@ -288,8 +294,6 @@ int process_define(char *line, Hashmap *h, FILE *in)
 
 void process_undef(char *line, Hashmap *h, FILE *in)
 {
-	ssize_t read;
-	size_t len = LINE_LEN;
 	char *p, *key;
 
 	p = strtok(line, " ");
