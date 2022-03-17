@@ -8,6 +8,7 @@
 #define HASHMAP_SIZE 20
 #define DEFINE_LEN 1000
 #define EXIT_IF 7
+#define SKIP 8
 
 typedef struct Node_t {
 	struct Node_t *next;
@@ -285,6 +286,21 @@ void process_undef(char *line, Hashmap *h, FILE *in)
 	remove_ht_entry(h, key);
 }
 
+void skip_lines(char *line, FILE *in) {
+	int inner_ifs = 0;
+
+	while (fgets(line, LINE_LEN, in)) {
+		if (strncmp(line, "#if", 3) == 0) {
+			inner_ifs++;
+		} else if (strncmp(line, "#endif", 6) == 0) {
+			if (inner_ifs)
+				inner_ifs--;
+			else
+				break;
+		}
+	}
+}
+
 int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 				char *base_dir, Node_t *other_dirs)
 {
@@ -314,7 +330,7 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 		symbol = strtok(NULL, "\n ");
 		value = get(h, symbol);
 
-		if (value && strcmp(value, "0") == 0)
+		if ((value && strcmp(value, "0") == 0) || strcmp(symbol, "0") == 0)
 			cond = 0;
 		else
 			cond = 1;
@@ -338,49 +354,14 @@ int process_if(char *line, Hashmap *h, FILE *in, FILE *out,
 	int res = 0;
 	while (fgets(line, LINE_LEN, in) && res != EXIT_IF) {
 		res = process_line(line, base_dir, other_dirs, in, out, h);
-		if (res && res != EXIT_IF)
+		if (res && res != EXIT_IF && res != SKIP)
 			return res;
+		else if (res == EXIT_IF)
+			return 0;
+		else if (res == SKIP)
+			skip_lines(line, in);
 	}
 
-
-
-
-
-
-
-	/*
-	if (cond) {
-		puts("HERE");
-		int res = 0;
-		while (fgets(line, LINE_LEN, in) && res != SWITCH) {
-			// printf("---\n%s\n", line);
-			res = process_line(line, base_dir, other_dirs, in, out, h);
-			// printf("+++%d\n%s\n", res, line);
-
-			// skip_line(...)
-		}
-	} else {
-		int done = 0;
-		while (fgets(line, LINE_LEN, in) && !done) {
-			if (strncmp(line, "#elif", 5) == 0) {
-				return process_if(line + 2, h, in, out, base_dir, other_dirs);
-			} else if (strncmp(line, "#else", 5) == 0) {
-				while (fgets(line, LINE_LEN, in)) {
-					if (strncmp(line, "#endif", 6) == 0) {
-						return 0;
-					} else {
-						int res = process_line(line, base_dir, other_dirs,
-												in, out, h);
-						if (res)
-							return res;
-					}
-				}
-			} else if (strncmp(line, "#endif", 6) == 0) {
-				return 0;
-			}
-		}
-	}
-	*/
 	return 0;
 }
 
@@ -469,8 +450,13 @@ int process_line(char *line, char *base_dir, Node_t *other_dirs,
 		else if (line[1] == 'i' && line[2] == 'f')
 			return process_if(line, h, in, out, base_dir, other_dirs);
 
-		// else if (line[1] == 'e')
-		//	return SWITCH;
+		// #endif
+		else if (line[1] == 'e' && line[2] == 'n')
+			return EXIT_IF;
+
+		// #else
+		else if (line[1] == 'e' && line[2] == 'l')
+			return SKIP;
 
 	} else {
 		change_line(line, out, h);
