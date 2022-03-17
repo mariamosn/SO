@@ -48,7 +48,6 @@ int put(Hashmap *h, char *key, char *value)
 
 		if (strcmp(entry->key, key) == 0) {
 			free(entry->value);
-			// entry->value = strdup(value);
 			entry->value = calloc(strlen(value) + 1, sizeof(char));
 			if (entry->value == NULL)
 				return 12;
@@ -70,7 +69,6 @@ int put(Hashmap *h, char *key, char *value)
 		return 12;
 	}
 
-	// entry->key = strdup(key);
 	entry->key = calloc(strlen(key) + 1, sizeof(char));
 	if (entry->key == NULL) {
 		free(new_node);
@@ -80,12 +78,10 @@ int put(Hashmap *h, char *key, char *value)
 	strncpy(entry->key, key, strlen(key));
 
 	if (value) {
-		// entry->value = strdup(value);
 		entry->value = calloc(strlen(value) + 1, sizeof(char));
 		if (entry->value)
 			strncpy(entry->value, value, strlen(value));
 	} else {
-		// entry->value = strdup("");
 		entry->value = calloc(strlen("") + 1, sizeof(char));
 		if (entry->value)
 			strncpy(entry->value, "", strlen(""));
@@ -176,7 +172,7 @@ void free_hashmap(Hashmap *h)
 	for (i = 0; i < h->hmax; i++) {
 		LinkedList *bucket = &(h->buckets[i]);
 
-		for (p = bucket->head; p; ) {
+		for (p = bucket->head; p;) {
 			free(p->data->key);
 			free(p->data->value);
 			free(p->data);
