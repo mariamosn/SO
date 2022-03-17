@@ -248,7 +248,7 @@ void change_line_inplace(char *line, Hashmap *h)
 				}
 				var_candidate[j - i] = line[j];
 			}
-			if (j == strlen(line)) {
+			if (j == (int) strlen(line)) {
 				var_candidate[j - i] = '\0';
 				replace = get(h, var_candidate);
 

@@ -1,8 +1,14 @@
-so-cpp: tema1.o hashmap.o
-	gcc tema1.o hashmap.o -o so-cpp
+CFLAGS=/nologo /W4 /EHsc /Za
 
-all_try: try.o hashmap.o
-	gcc try.o hashmap.o -o try
+build: so-cpp.exe
+
+so-cpp.exe: tema1.obj hashmap.obj
+	$(CPP) $(CFLAGS) /Fe$@ $**
+
+tema1.obj: tema1.c
+
+hashmap.obj: hashmap.c hashmap.h
 
 clean:
-	rm -f *.o try so-cpp
+	del /f /q *.obj *.exe
+
