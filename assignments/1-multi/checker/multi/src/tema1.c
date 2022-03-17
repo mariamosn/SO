@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,7 +83,10 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 	int last, i;
 
 	if (infile == NULL) {
-		*base_dir = strdup(".");
+		// *base_dir = strdup(".");
+		*base_dir = calloc(2, sizeof(char));
+		if (*base_dir)
+			strncpy(*base_dir, ".", 1);
 	} else {
 		last = -1;
 
@@ -95,7 +99,10 @@ int setup_base_dir(char **base_dir, Hashmap **h, char *infile)
 			if (*base_dir)
 				strncpy(*base_dir, infile, last + 1);
 		} else {
-			*base_dir = strdup(".");
+			// *base_dir = strdup(".");
+			*base_dir = calloc(2, sizeof(char));
+			if (*base_dir)
+				strncpy(*base_dir, ".", 1);
 		}
 	}
 
@@ -117,7 +124,15 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 		return 12;
 	}
 
-	new_dir->data = strdup(dir);
+	// new_dir->data = strdup(dir);
+	new_dir->data = calloc(strlen(dir) + 1, sizeof(char));
+	if (new_dir->data) {
+		strncpy(new_dir->data, dir, strlen(dir));
+	} else {
+		free_hashmap(*h);
+		free(*h);
+		return 12;
+	}
 	new_dir->next = NULL;
 
 	if (*dirs == NULL) {
@@ -257,11 +272,14 @@ int process_define(char *line, Hashmap *h, FILE *in)
 		return 12;
 
 	p = strtok(line, " ");
-	key = strdup(strtok(NULL, "\n "));
+	p = strtok(NULL, "\n ");
+	key = calloc(strlen(p) + 1, sizeof(char));
+	// key = strdup(strtok(NULL, "\n "));
 	if (!key) {
 		free(val);
 		return 12;
 	}
+	strncpy(key, p, strlen(p));
 
 	value = strtok(NULL, "\n");
 	if (value && value[strlen(value) - 1] == '\\') {

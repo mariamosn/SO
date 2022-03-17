@@ -47,9 +47,11 @@ int put(Hashmap *h, char *key, char *value)
 
 		if (strcmp(entry->key, key) == 0) {
 			free(entry->value);
-			entry->value = strdup(value);
+			// entry->value = strdup(value);
+			entry->value = calloc(strlen(value) + 1, sizeof(char));
 			if (entry->value == NULL)
 				return 12;
+			strncpy(entry->value, value, strlen(value));
 			return 0;
 		}
 		node_before = p;
@@ -67,17 +69,26 @@ int put(Hashmap *h, char *key, char *value)
 		return 12;
 	}
 
-	entry->key = strdup(key);
+	// entry->key = strdup(key);
+	entry->key = calloc(strlen(key) + 1, sizeof(char));
 	if (entry->key == NULL) {
 		free(new_node);
 		free(entry);
 		return 12;
 	}
+	strncpy(entry->key, key, strlen(key));
 
-	if (value)
-		entry->value = strdup(value);
-	else
-		entry->value = strdup("");
+	if (value) {
+		// entry->value = strdup(value);
+		entry->value = calloc(strlen(value) + 1, sizeof(char));
+		if (entry->value)
+			strncpy(entry->value, value, strlen(value));
+	} else {
+		// entry->value = strdup("");
+		entry->value = calloc(strlen("") + 1, sizeof(char));
+		if (entry->value)
+			strncpy(entry->value, "", strlen(""));
+	}
 	if (entry->value == NULL) {
 		free(new_node);
 		free(entry->key);

@@ -1,6 +1,6 @@
 #ifndef __HASHMAP_H
 #define __HASHMAP_H
-
+#define _CRT_SECURE_NO_WARNINGS
 typedef struct Pair {
 	char *key;
 	char *value;
