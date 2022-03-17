@@ -233,8 +233,7 @@ void change_line_inplace(char *line, Hashmap *h)
 				if (replace)
 					sprintf(new_line + strlen(new_line), "%s", replace);
 				else
-					sprintf(new_line + strlen(new_line), "%s",
-					 		var_candidate);
+					sprintf(new_line + strlen(new_line), "%s", var_candidate);
 				break;
 			}
 		}
