@@ -190,7 +190,8 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	}
 
 	while (fgets(line, LINE_LEN, file_incl)) {
-		ret = process_line(line, base_dir, other_dirs, file_incl, out, h);
+		ret = process_line(line, base_dir, other_dirs,
+							file_incl, out, h);
 
 		if (ret) {
 			free(file_to_include);
@@ -205,6 +206,23 @@ int process_include(char *line, char *base_dir, Node_t *other_dirs, FILE *out,
 	fclose(file_incl);
 
 	return 0;
+}
+
+int ending_char(char c)
+{
+	if (c >= 'a' && c <= 'z')
+		return 0;
+
+	if (c >= 'A' && c <= 'Z')
+		return 0;
+
+	if (c >= '0' && c <= '9')
+		return 0;
+
+	if (c == '_')
+		return 0;
+
+	return 1;
 }
 
 void change_line_inplace(char *line, Hashmap *h)
@@ -225,19 +243,22 @@ void change_line_inplace(char *line, Hashmap *h)
 				quote = 1 - quote;
 		} else {
 			for (j = i; j < (int) strlen(line); j++) {
-				if (!((line[j] >= 'a' && line[j] <= 'z') ||
-						(line[j] >= 'A' && line[j] <= 'Z') ||
-						(line[j] >= '0' && line[j] <= '9') ||
-						line[j] == '_')) {
+				if (ending_char(line[j])) {
 					var_candidate[j - i] = '\0';
 					replace = get(h, var_candidate);
 
 					if (replace)
-						sprintf(new_line + strlen(new_line), "%s%c", replace,
+						sprintf(new_line +
+								strlen(new_line),
+								"%s%c",
+								replace,
 								line[j]);
 					else
-						sprintf(new_line + strlen(new_line), "%s%c",
-								var_candidate, line[j]);
+						sprintf(new_line +
+								strlen(new_line),
+								"%s%c",
+								var_candidate,
+								line[j]);
 					i = j;
 					break;
 				}
@@ -430,10 +451,7 @@ void change_line(char *line, FILE *out, Hashmap *h)
 				quote = 1 - quote;
 		} else {
 			for (j = i; j < (int) strlen(line); j++) {
-				if (!((line[j] >= 'a' && line[j] <= 'z') ||
-						(line[j] >= 'A' && line[j] <= 'Z') ||
-						(line[j] >= '0' && line[j] <= '9') ||
-						line[j] == '_')) {
+				if (ending_char(line[j])) {
 					var_candidate[j - i] = '\0';
 					replace = get(h, var_candidate);
 
