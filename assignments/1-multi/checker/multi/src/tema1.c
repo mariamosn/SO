@@ -30,6 +30,7 @@ int setup_hashmap(Hashmap **h)
 	*h = malloc(sizeof(Hashmap));
 	if (*h == NULL)
 		return 12;
+
 	if (init_hashmap(*h, HASHMAP_SIZE)) {
 		free(*h);
 		return 12;
@@ -39,8 +40,7 @@ int setup_hashmap(Hashmap **h)
 
 int add_arg_define(char *argv[], Hashmap *h, int *i)
 {
-	char *symbol, *mapping, *p;
-	char *str;
+	char *symbol, *mapping, *p, *str;
 
 	if (strlen(argv[*i]) == 2) {
 		*i = *i + 1;
@@ -49,8 +49,7 @@ int add_arg_define(char *argv[], Hashmap *h, int *i)
 		str = argv[*i] + 2;
 	}
 
-	p = strtok(str, "=");
-	symbol = p;
+	symbol = strtok(str, "=");
 
 	p = strtok(NULL, "=");
 	if (p != NULL)
@@ -75,6 +74,7 @@ int add_arg_outfile(char **outfile, char *argv[], int *i)
 	} else {
 		*outfile = argv[*i] + 2;
 	}
+
 	return 0;
 }
 
@@ -126,8 +126,17 @@ int add_other_dir(char *dir, Node_t **dirs, Hashmap **h)
 	} else {
 		free_hashmap(*h);
 		free(*h);
+		free(new_dir);
+		for (p = *dirs; p;) {
+			Node_t *to_del = p;
+
+			p = p->next;
+			free(to_del->data);
+			free(to_del);
+		}
 		return 12;
 	}
+
 	new_dir->next = NULL;
 
 	if (*dirs == NULL) {
@@ -416,11 +425,11 @@ int init_preprocess(char **line, char *infile, char *outfile, FILE **in,
 	*line = calloc(LINE_LEN, sizeof(char));
 	if (*line == NULL)
 		return 12;
+
 	if (infile)
 		*in = fopen(infile, "r");
 	else
 		*in = stdin;
-
 	if (!(*in)) {
 		free(*line);
 		return -1;
@@ -522,11 +531,12 @@ int preprocess(char *infile, char *outfile, Hashmap *h, char *base_dir,
 
 	while (fgets(line, LINE_LEN, in)) {
 		ret = process_line(line, base_dir, other_dirs, in, out, h);
-
 		if (ret) {
 			free(line);
-			fclose(in);
-			fclose(out);
+			if (in != stdin)
+				fclose(in);
+			if (out != stdout)
+				fclose(out);
 			return ret;
 		}
 	}
@@ -567,9 +577,11 @@ int main(int argc, char *argv[])
 		} else if (argv[i][1] == 'I') {
 			if (strlen(argv[i]) == 2) {
 				i++;
-				add_other_dir(argv[i], &other_dirs, &h);
+				if (add_other_dir(argv[i], &other_dirs, &h))
+					return 12;
 			} else {
-				add_other_dir(argv[i] + 2, &other_dirs, &h);
+				if (add_other_dir(argv[i] + 2, &other_dirs, &h))
+					return 12;
 			}
 		} else if (argv[i][1] == 'o') {
 			if (add_arg_outfile(&outfile, argv, &i))
