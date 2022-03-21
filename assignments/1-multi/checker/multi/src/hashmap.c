@@ -1,11 +1,20 @@
+/*
+ * Maria Moșneag
+ * 333CA
+ */
+
 #define _CRT_SECURE_NO_WARNINGS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "hashmap.h"
 
-// Credits: http://www.cse.yorku.ca/~oz/hash.html
+/*
+ * funcție de hashing pentru string-uri
+ * Credits: http://www.cse.yorku.ca/~oz/hash.html
+ */
 unsigned int hash_function_string(char *a)
 {
 	unsigned int hash = 5381, i;
@@ -16,6 +25,11 @@ unsigned int hash_function_string(char *a)
 	return hash;
 }
 
+/*
+ * Funcția alocă memorie pentru un hashmap și îl inițializează.
+ * @h = pointer către hashmap
+ * @hmax = numărul de bucket-uri
+ */
 int init_hashmap(Hashmap *h, int hmax)
 {
 	int i;
@@ -31,6 +45,14 @@ int init_hashmap(Hashmap *h, int hmax)
 	return 0;
 }
 
+/*
+ * Funcția adaugă o nouă pereche în hashmap.
+ * @h = pointer către hashmap
+ * @key = cheia
+ * @value = valoarea
+ * Obs.: În cazul în care cheia există deja în h,
+ * valoarea este actualizată.
+ */
 int put(Hashmap *h, char *key, char *value)
 {
 	int index = hash_function_string(key) % h->hmax;
@@ -97,6 +119,12 @@ int put(Hashmap *h, char *key, char *value)
 	return 0;
 }
 
+/*
+ * Funcția întoarce un pointer la valoarea asociată unei chei,
+ * respectiv NULL dacă cheia nu există.
+ * @h = pointer către hashmap
+ * @key = cheia
+ */
 char *get(Hashmap *h, char *key)
 {
 	int index = hash_function_string(key) % h->hmax;
@@ -116,6 +144,11 @@ char *get(Hashmap *h, char *key)
 	return NULL;
 }
 
+/*
+ * Funcția întoarce 1 dacă cheia există, respectiv 0 în caz contrar.
+ * @h = pointer către hashmap
+ * @key = cheia
+ */
 int contains(Hashmap *h, char *key)
 {
 	if (get(h, key) == NULL)
@@ -123,6 +156,11 @@ int contains(Hashmap *h, char *key)
 	return 1;
 }
 
+/*
+ * Funcția șterge perechea ce are o anumită cheie, dacă aceasta există.
+ * @h = pointer către hashmap
+ * @key = cheia
+ */
 void remove_ht_entry(Hashmap *h, char *key)
 {
 	int index = hash_function_string(key) % h->hmax;
@@ -159,6 +197,10 @@ void remove_ht_entry(Hashmap *h, char *key)
 	}
 }
 
+/*
+ * Funcția eliberează memoria asociată bucket-urilor și perechilor.
+ * @h = pointer către hashmap
+ */
 void free_hashmap(Hashmap *h)
 {
 	Node *p, *prev;
@@ -178,23 +220,4 @@ void free_hashmap(Hashmap *h)
 		}
 	}
 	free(h->buckets);
-}
-
-void print_all(Hashmap *h)
-{
-	Node *p;
-	int i;
-
-	if (h == NULL) {
-		printf("NULL\n");
-		return;
-	}
-	for (i = 0; i < h->hmax; i++) {
-		LinkedList *bucket = &(h->buckets[i]);
-
-		printf("bucket %d: ", i);
-		for (p = bucket->head; p; p = p->next)
-			printf("(%s, %s) ", p->data->key, p->data->value);
-		printf("\n");
-	}
 }
