@@ -134,7 +134,11 @@ FUNC_DECL_PREFIX int so_fseek(SO_FILE *stream, long offset, int whence)
         stream->buf_index = 0;
         stream->buf_size = 0;
     } else if (stream->last == WRITE) {
-        so_fflush(stream);
+        res = so_fflush(stream);
+        if (res == SO_EOF) {
+            stream->error = SO_EOF;
+            return -1;
+        }
     }
 
     res = lseek(stream->fd, offset, whence);
@@ -173,31 +177,34 @@ size_t so_fread(void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
     for (i = 0; i < size * nmemb; i++) {
         crt = so_fgetc(stream);
         if (crt == SO_EOF) {
-            stream->error = SO_EOF;
-            return 0;
+            if (!stream->eof) {
+                stream->error = SO_EOF;
+                return 0;
+            }
+            break;
         }
         ((char *)ptr)[i] = (char)crt;
     }
     stream->last = READ;
 
-    return nmemb;
+    return i / size;
 }
 
 FUNC_DECL_PREFIX
 size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
 {
     long long i;
-    int crt;
+    int crt, ret;
     char c;
 
     for (i = 0; i < size * nmemb; i++) {
         c = ((char *)ptr)[i];
         crt = 0;
         crt = (int)c;
-        crt = so_fputc(crt, stream);
-        if (crt == SO_EOF) {
+        ret = so_fputc(crt, stream);
+        if (ret == SO_EOF) {
             stream->error = SO_EOF;
-            return 0;
+            // return 0;
         }
     }
 
@@ -207,7 +214,7 @@ size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
 
 FUNC_DECL_PREFIX int so_fgetc(SO_FILE *stream)
 {
-    int res = 0, bytes_read;
+    int res = 0, bytes_read = 0;
 
     // verifică permisiunile
     if (stream->mod & READ == 0) {
@@ -218,8 +225,10 @@ FUNC_DECL_PREFIX int so_fgetc(SO_FILE *stream)
     // dacă nu mai sunt date disponibile în buffer, acesta este repopulat
     if (stream->buf_index >= stream->buf_size || stream->buf_index < 0) {
         bytes_read = read(stream->fd, stream->buffer, BUF_LEN);
-        if (bytes_read <= 0) {
+        if (bytes_read < 0) {
             stream->error = SO_EOF;
+            return SO_EOF;
+        } else if (bytes_read == 0) {
             stream->eof = 1;
             return SO_EOF;
         }
