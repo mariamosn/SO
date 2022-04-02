@@ -52,11 +52,11 @@ FUNC_DECL_PREFIX SO_FILE *so_fopen(const char *pathname, const char *mode)
 
     } else if (strncmp(mode, "a+", 2) == 0) {
         fd = open(pathname, O_RDWR | O_CREAT | O_APPEND, 0644);
-        mod = APPEND | READ;
+        mod = APPEND | READ | WRITE;
 
     } else if (strncmp(mode, "a", 1) == 0) {
         fd = open(pathname, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        mod = APPEND;
+        mod = APPEND | WRITE;
     }
 
     if (fd < 0)
@@ -204,7 +204,7 @@ size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
         ret = so_fputc(crt, stream);
         if (ret == SO_EOF) {
             stream->error = SO_EOF;
-            // return 0;
+            return 0;
         }
     }
 
@@ -217,7 +217,7 @@ FUNC_DECL_PREFIX int so_fgetc(SO_FILE *stream)
     int res = 0, bytes_read = 0;
 
     // verifică permisiunile
-    if (stream->mod & READ == 0) {
+    if ((stream->mod & READ) == 0) {
         stream->error = SO_EOF;
         return SO_EOF;
     }
@@ -248,7 +248,7 @@ FUNC_DECL_PREFIX int so_fputc(int c, SO_FILE *stream)
     int bytes_written, ret;
 
     // verifică permisiunile
-    if (stream->mod & WRITE == 0) {
+    if ((stream->mod & WRITE) == 0) {
         stream->error = SO_EOF;
         return SO_EOF;
     }
@@ -266,6 +266,8 @@ FUNC_DECL_PREFIX int so_fputc(int c, SO_FILE *stream)
     stream->buf_index++;
     stream->last = WRITE;
 
+    if (c == SO_EOF)
+        return 0;
     return c;
 }
 
