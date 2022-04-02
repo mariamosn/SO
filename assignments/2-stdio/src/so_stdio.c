@@ -7,6 +7,7 @@
  
 #include <sys/types.h>  /* open */
 #include <sys/stat.h>	/* open */
+#include <sys/wait.h>
 #include <fcntl.h>      /* O_CREAT, O_RDONLY */
 #include <unistd.h>     /* close, lseek, read, write */
 #include <errno.h>
@@ -26,6 +27,7 @@ typedef struct _so_file {
     int error;
     int last;
     int eof;
+    pid_t pid;
 
 } SO_FILE;
 
@@ -283,10 +285,92 @@ FUNC_DECL_PREFIX int so_ferror(SO_FILE *stream)
 
 FUNC_DECL_PREFIX SO_FILE *so_popen(const char *command, const char *type)
 {
-    return NULL;
+    SO_FILE *stream;
+    pid_t pid;
+    int status, filedes[2];
+
+    if (pipe(filedes))
+        return NULL;
+
+    stream = (SO_FILE *)malloc(sizeof(SO_FILE));
+    if (stream == NULL) {
+        close(filedes[0]);
+        close(filedes[1]);
+        return NULL;
+    }
+
+    stream->buf_index = 0;
+    stream->buf_size = 0;
+    stream->error = 0;
+    stream->last = 0;
+    stream->eof = 0;
+
+    if (strncmp("r", type, 1) == 0) {
+        stream->mod = READ;
+        stream->fd = filedes[0];
+    } else if (strncmp("w", type, 1) == 0) {
+        stream->mod = WRITE;
+        stream->fd = filedes[1];
+    } else {
+        close(filedes[0]);
+        close(filedes[1]);
+        free(stream);
+        return NULL;
+    }
+
+    pid = fork();
+    if (pid == -1) {
+        free(stream);
+        close(filedes[0]);
+        close(filedes[1]);
+        return NULL;
+    } else if (pid == 0) {
+        if (stream->mod & READ) {
+            dup2(filedes[1], 1);
+            close(filedes[0]);
+        } else {
+            dup2(filedes[0], 0);
+            close(filedes[1]);
+        }
+
+        if (execl("/bin/sh", "sh", "-c", command, NULL) == -1) {
+            free(stream);
+            if (stream->mod & READ)
+                close(filedes[1]);
+            else
+                close(filedes[0]);
+            return NULL;
+        }
+    } else {
+        if (stream->mod & READ)
+            close(filedes[1]);
+        else
+            close(filedes[0]);
+
+        stream->pid = pid;
+    }
+
+    return stream;
 }
 
 FUNC_DECL_PREFIX int so_pclose(SO_FILE *stream)
 {
-    return -1;
+    pid_t pid = stream->pid;
+    int ret, status;
+
+    if (so_fflush(stream) == SO_EOF && stream->last == WRITE) {
+        stream->error = SO_EOF;
+        close(stream->fd);
+        free(stream);
+        return SO_EOF;
+    }
+
+    close(stream->fd);
+    free(stream);
+
+    ret = waitpid(pid, &status, 0);
+    if (ret == -1 || !WIFEXITED(status))
+        return SO_EOF;
+
+    return 0;
 }
