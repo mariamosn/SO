@@ -13,15 +13,6 @@
 #include <unistd.h>
 
 /**
- * Read exactly count bytes or die trying.
- *
- * Return values:
- *  < 0     - error.
- *  >= 0    - number of bytes read.
- */
-ssize_t xread(int fd, void *buf, size_t count);
-
-/**
  * Write exactly count bytes or die trying.
  *
  * Return values:
