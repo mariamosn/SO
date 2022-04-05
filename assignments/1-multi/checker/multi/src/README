@@ -1,0 +1,83 @@
+Maria Moșneag
+333CA
+Sisteme de Operare
+Tema 1
+
+Organizare
+
+	- tema1.c : conține implementarea funcționalităților ce țin de preprocesarea
+				unui fișier
+	- hashmap.h și hashmap.c : conțin implementarea unui hashmap, funcționalită-
+							   țile fiind utilizate apoi în cadrul tema1.c
+	- Makefile : makefile-ul pentru Windows
+	- GNUmakefile : makefile-ul pentru Linux
+	- README
+
+	Abordarea pe care am ales-o presupune realizarea următorilor pași
+		principali:
+		1) Extragerea informațiilor necesare din argumentele cu care este rulat
+		   executabilul. Acest lucru este realizat de funcția parse_args. Alte
+		   funcții auxiliare utilizate în această etapă sunt add_arg_define,
+		   add_other_dir și add_arg_outfile.
+		2) Efectuarea efectivă a preprocesării. Funcția principală care reali-
+		   zează acest pas este preprocess. Aceasta apelează la rândul ei mai
+		   multe funcții auxiliare precum init_preprocess pentru alocarea resur-
+		   selor și process_line care prelucrează o linie, utilizând în funcție
+		   de caz process_include, process_define, process_undef, process_if sau
+		   change_line.
+		3) Alocarea resurselor: setup_hashmap și setup_base_dir.
+		4) Eliberarea resurselor alocate.
+
+	Consider că tema reprezintă o bună recapitulare a noțiunilor deja cunoscute.
+	Am realizat implementarea în cel mai eficient mod în care am putut. Totuși,
+		mereu e loc de îmbunătățiri, deci nu o să mă hazardez să spun că este
+		cea mai eficientă implementare posibilă.
+
+
+Implementare
+
+	Întregul enunț al temei este implementat.
+
+	Una dintre cele mai mari dificultăți întâmpinate a fost, surprinzător, lega-
+		tă de checker-ul de coding style. Mi se pare că există anumite inconsis-
+		tențe în acest caz.
+		Exemple: - Deși în majoritatea locurilor este acceptat FILE *in, apar
+				   locuri în care aceasta este considerată drept fiind o eroare,
+				   fiind necesară scrierea sub forma FILE * in.
+				 - Nu se acceptă întoarcerea ENOMEM, dacă acesta este definit ca
+				   fiind 12 (cum este specificat în enunț) pentru că este valoa-
+				   re pozitivă.
+				 - Apar erori conform cărora linii care au mai puțin de 80 de
+				   caractere ar avea de fapt mai mult de 80 de caractere, chiar
+				   și în cazul liniilor care nu conțin tab.
+
+	Cred că partea care mi se pare cea mai utilă din temă este faptul că am a-
+		profundat cunoștiințele legate de directivele ce pot fi incluse în cod.
+	De asemenea, a fost interesant să compar erorile care ar putea să apară pe
+		Linux cu cele de pe Windows.
+
+
+Cum se compilează și cum se rulează?
+
+	build:
+		Linux:
+			make -f GNUmakefile
+		Windows:
+			make
+
+	run:
+		./so-cpp[.exe] [-D <SYMBOL>[=<MAPPING>]] [-I <DIR>] [<INFILE>]
+					   [[-o] <OUTFILE>]
+
+Bibliografie:
+
+	Laborator 01 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-01
+	Arhivă Listă de discuții - SO
+		http://cursuri.cs.pub.ro/pipermail/so/
+	Hash Functions
+		http://www.cse.yorku.ca/~oz/hash.html
+	man cpp
+		https://linux.die.net/man/1/cpp
+	Linux kernel coding style
+		https://www.kernel.org/doc/Documentation/process/coding-style.rst
