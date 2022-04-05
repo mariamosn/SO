@@ -3,13 +3,19 @@
  * 333CA
  */
 
-#define DLL_EXPORTS
 #include "so_stdio.h"
+#include "xfile.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <windows.h>
+
+#include <sys/types.h>  /* open */
+#include <sys/stat.h>	/* open */
+#include <sys/wait.h>
+#include <fcntl.h>  /* O_CREAT, O_RDONLY */
+#include <unistd.h>  /* close, lseek, read, write */
+#include <errno.h>
 
 #define BUF_LEN 4096
 
@@ -21,9 +27,9 @@
  */
 typedef struct _so_file {
 	/*
-	 * handle-ul fișierului
+	 * file descriptor-ul fișierului
 	 */
-	HANDLE fd;
+	int fd;
 	/*
 	 * buffer-ul asociat structurii pentru a eficientiza numărul de
 	 * scrieri și de citiri
@@ -59,43 +65,9 @@ typedef struct _so_file {
 	 * o valoare diferită de 0 altfel
 	 */
 	int eof;
-	PROCESS_INFORMATION pi;
+	pid_t pid;
 
 } SO_FILE;
-
-
-/**
- * Lab #2, Simple I/O operations
- * Task #3, Linux
- * Full length read/write
- *
- * Write exactly count bytes or die trying.
- *
- * Return values:
- *  < 0     - error.
- *  >= 0    - number of bytes read.
- */
-int xwrite(HANDLE fd, const void *buf, int count)
-{
-	int bytes_written = 0;
-
-	while (bytes_written < count) {
-		int bytes_written_now;
-
-		WriteFile(fd,
-			(char *)buf + bytes_written,
-			count - bytes_written,
-			&bytes_written_now,
-			NULL);
-
-		if (bytes_written_now <= 0) /* I/O error */
-			return -1;
-
-		bytes_written += bytes_written_now;
-	}
-
-	return bytes_written;
-}
 
 /*
  * funcție similară fopen din libc, deschide un fișier
@@ -107,77 +79,38 @@ int xwrite(HANDLE fd, const void *buf, int count)
  */
 SO_FILE *so_fopen(const char *pathname, const char *mode)
 {
-	int mod;
-	HANDLE fd = INVALID_HANDLE_VALUE;
+	int fd = -1, mod;
 	SO_FILE *result;
 
 	/*
 	 * verifică modul în care va fi deschis fișierul
 	 */
 	if (strncmp(mode, "r+", 2) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|GENERIC_WRITE,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_RDWR);
 		mod = READ | WRITE;
 
 	} else if (strncmp(mode, "r", 1) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|GENERIC_WRITE,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_RDONLY);
 		mod = READ;
 
 	} else if (strncmp(mode, "w+", 2) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|GENERIC_WRITE,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				CREATE_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_RDWR | O_CREAT | O_TRUNC, 0644);
 		mod = READ | WRITE;
 
 	} else if (strncmp(mode, "w", 1) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|GENERIC_WRITE,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				CREATE_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 		mod = WRITE;
 
 	} else if (strncmp(mode, "a+", 2) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|FILE_APPEND_DATA,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				OPEN_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_RDWR | O_CREAT | O_APPEND, 0644);
 		mod = READ | WRITE;
 
 	} else if (strncmp(mode, "a", 1) == 0) {
-		fd = CreateFile(pathname,
-				GENERIC_READ|FILE_APPEND_DATA,
-				FILE_SHARE_READ|FILE_SHARE_WRITE,
-				NULL,
-				OPEN_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
+		fd = open(pathname, O_WRONLY | O_CREAT | O_APPEND, 0644);
 		mod = WRITE;
-	} else {
-		return NULL;
 	}
 
-	if (fd == INVALID_HANDLE_VALUE)
+	if (fd < 0)
 		return NULL;
 
 	/*
@@ -185,7 +118,7 @@ SO_FILE *so_fopen(const char *pathname, const char *mode)
 	 */
 	result = malloc(sizeof(SO_FILE));
 	if (result == NULL) {
-		CloseHandle(fd);
+		close(fd);
 		return NULL;
 	}
 
@@ -225,8 +158,8 @@ int so_fclose(SO_FILE *stream)
 	/*
 	 * se închide fișierul
 	 */
-	res = CloseHandle(stream->fd);
-	if (res == 0) {
+	res = close(stream->fd);
+	if (res == -1) {
 		stream->error = SO_EOF;
 		free(stream);
 		return SO_EOF;
@@ -241,12 +174,12 @@ int so_fclose(SO_FILE *stream)
 }
 
 /*
- * funcția întoarce handle-ul asociat unui fișier
+ * funcția întoarce file descriptor-ul asociat unui fișier
  * @stream	= un pointer către o structură de tip SO_FILE care conține
  *		  datele fișierului
- * @return	= handle-ul asociat fișierului
+ * @return	= file descriptor-ul asociat fișierului
  */
-HANDLE so_fileno(SO_FILE *stream)
+int so_fileno(SO_FILE *stream)
 {
 	return stream->fd;
 }
@@ -266,10 +199,8 @@ int so_fflush(SO_FILE *stream)
 	/*
 	 * verifică dacă ultima operație a fost o scriere
 	 */
-	if (stream->last != WRITE) {
-		stream->error = SO_EOF;
+	if (stream->last != WRITE)
 		return SO_EOF;
-	}
 
 	/*
 	 * scrie conținutul buffer-ului intern în fișier
@@ -324,7 +255,7 @@ int so_fseek(SO_FILE *stream, long offset, int whence)
 	/*
 	 * se mută cursorul la poziția corespunzătoare
 	 */
-	res = SetFilePointer(stream->fd, offset, NULL, whence);
+	res = lseek(stream->fd, offset, whence);
 	if (res == -1) {
 		stream->error = errno;
 		return -1;
@@ -349,20 +280,19 @@ long so_ftell(SO_FILE *stream)
 	 * determină poziția curentă reală, aceasta depinzând însă de starea
 	 * buffer-ului intern
 	 */
-	crt_off = SetFilePointer(stream->fd, 0, NULL, FILE_CURRENT);
+	crt_off = lseek(stream->fd, 0, SEEK_CUR);
 	if (crt_off == -1) {
 		stream->error = SO_EOF;
-		return SO_EOF;
+		return -1;
 	}
 
 	/*
-	 * se determină poziția curentă, ținând cont de offset-ul
-	 * din cadrul buffer-ului intern;
-	 * dacă ultima operație a fost o scriere, înseamnă că în buffer
-	 * se află caractere în plus, care nu au apucat încă să fie
-	 * scrise în fișier;
-	 * dacă ultima operație a fost o citire, înseamnă că în buffer
-	 * se află mai multe caractere, care nu au fost încă citite
+	 * se determină poziția curentă, ținând cont de offset-ul din cadrul
+	 * buffer-ului intern;
+	 * dacă ultima operație a fost o scriere, înseamnă că în buffer se află
+	 * caractere în plus, care nu au apucat încă să fie scrise în fișier;
+	 * dacă ultima operație a fost o citire, înseamnă că în buffer se află
+	 * mai multe caractere, care nu au fost încă citite
 	 */
 	if (stream->last == WRITE)
 		crt_off += stream->buf_index;
@@ -374,8 +304,8 @@ long so_ftell(SO_FILE *stream)
 
 /*
  * funcție similară fread din libc, citește mai multe elemente
- * @ptr		= un pointer către zona de memorie în care vor fi
- *		  stocate datele citite
+ * @ptr		= un pointer către zona de memorie în care vor fi stocate datele
+ *		  citite
  * @size	= dimensiunea unui element citit
  * @nmemb	= numărul de elemente citite
  * @stream	= un pointer către o structură de tip SO_FILE care conține
@@ -402,6 +332,7 @@ size_t so_fread(void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
 		}
 		((char *)ptr)[i] = (char)crt;
 	}
+
 	stream->last = READ;
 
 	return (size_t)(i / size);
@@ -409,8 +340,8 @@ size_t so_fread(void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
 
 /*
  * funcție similară fwrite din libc, scrie mai multe elemente
- * @ptr		= un pointer către zona de memorie de unde vor fi
- *		  luate datele scrise
+ * @ptr		= un pointer către zona de memorie de unde vor fi luate datele
+ *		  scrise
  * @size	= dimensiunea unui element citit
  * @nmemb	= numărul de elemente citite
  * @stream	= un pointer către o structură de tip SO_FILE care conține
@@ -444,14 +375,14 @@ size_t so_fwrite(const void *ptr, size_t size, size_t nmemb, SO_FILE *stream)
 
 /*
  * funcție similară fgetc din libc, citește un byte din fișier
- * @stream	= un pointer către o structură de tip SO_FILE care
- *		  conține datele fișierului
+ * @stream	= un pointer către o structură de tip SO_FILE care conține
+ *		  datele fișierului
  * @return	= caracterul citit, extins la int în caz de succes
  *		  sau SO_EOF în caz de eroare
  */
 int so_fgetc(SO_FILE *stream)
 {
-	int res = 0, bytes_read = 0, ret;
+	int res = 0, bytes_read = 0;
 
 	/*
 	 * verifică modul în care a fost deschis fișierul
@@ -462,14 +393,11 @@ int so_fgetc(SO_FILE *stream)
 	}
 
 	/*
-	 * dacă nu mai sunt date disponibile în buffer,
-	 * acesta este repopulat
+	 * dacă nu mai sunt date disponibile în buffer, acesta este repopulat
 	 */
-	if (stream->buf_index >= stream->buf_size ||
-		stream->buf_index < 0) {
-		ret = ReadFile(stream->fd, stream->buffer, BUF_LEN,
-				&bytes_read, NULL);
-		if (ret == 0) {
+	if (stream->buf_index >= stream->buf_size || stream->buf_index < 0) {
+		bytes_read = read(stream->fd, stream->buffer, BUF_LEN);
+		if (bytes_read < 0) {
 			stream->error = SO_EOF;
 			return SO_EOF;
 		} else if (bytes_read == 0) {
@@ -537,8 +465,7 @@ int so_fputc(int c, SO_FILE *stream)
 }
 
 /*
- * funcție similară feof din libc,
- * verifică dacă s-a ajuns la finalul fișierului
+ * funcție similară feof din libc, verifică dacă s-a ajuns la finalul fișierului
  * @stream	= un pointer către o structură de tip SO_FILE care conține
  *		  datele fișierului
  * @return	= 0 dacă nu s-a ajuns la finalul fișierului
@@ -550,8 +477,8 @@ int so_feof(SO_FILE *stream)
 }
 
 /*
- * funcție similară ferror din libc, verifică dacă s-a întâlnit
- * vreo eroare în urma unei operații efectuate cu fișierul
+ * funcție similară ferror din libc, verifică dacă s-a întâlnit vreo eroare în
+ * urma unei operații efectuate cu fișierul
  * @stream	= un pointer către o structură de tip SO_FILE care conține
  *		  datele fișierului
  * @return	= 0 dacă nu s-a întâlnit vreo eroare
@@ -562,14 +489,146 @@ int so_ferror(SO_FILE *stream)
 	return stream->error;
 }
 
+/*
+ * funcție auxiliară care gestionează acțiunile proceselor după crearea
+ * procesului copil
+ * @pid		= pid-ul procesului
+ * @stream	= un pointer către o structură de tip SO_FILE care conține
+ *		  datele fișierului
+ * @filedes	= file descriptorii pipe-ului
+ * @command	= comanda ce va fi executată de procesul copil
+ * @return	= -1 în caz de eroare, 0 altfel
+ */
+int init_proc(pid_t pid, SO_FILE *stream, int filedes[2], const char *command)
+{
+	/*
+	 * eroare apărută la fork
+	 */
+	if (pid == -1) {
+		free(stream);
+		close(filedes[0]);
+		close(filedes[1]);
+		return -1;
+
+	/*
+	 * procesul copil
+	 */
+	} else if (pid == 0) {
+		if (stream->mod & READ) {
+			dup2(filedes[1], 1);
+			close(filedes[0]);
+		} else {
+			dup2(filedes[0], 0);
+			close(filedes[1]);
+		}
+
+		if (execl("/bin/sh", "sh", "-c", command, NULL) == -1) {
+			free(stream);
+			if (stream->mod & READ)
+				close(filedes[1]);
+			else
+				close(filedes[0]);
+			return -1;
+		}
+
+	/*
+	 * procesul părinte
+	 */
+	} else {
+		if (stream->mod & READ)
+			close(filedes[1]);
+		else
+			close(filedes[0]);
+
+		stream->pid = pid;
+	}
+
+	return 0;
+}
+
+/*
+ * funcție similară popen din libc, lansează un proces nou
+ * @command	= comanda care va fi executată de procesul nou creat
+ * @type	= tipul fișierului întors
+ * @return	= un pointer către o structură de tip SO_FILE
+ *		  sau NULL în caz de eroare
+ */
 SO_FILE *so_popen(const char *command, const char *type)
 {
-	SO_FILE *stream = NULL;
+	SO_FILE *stream;
+	pid_t pid;
+	int filedes[2];
+
+	/*
+	 * inițializează pipe
+	 */
+	if (pipe(filedes))
+		return NULL;
+
+	/*
+	 * inițializează SO_FILE
+	 */
+	stream = (SO_FILE *)calloc(1, sizeof(SO_FILE));
+	if (stream == NULL) {
+		close(filedes[0]);
+		close(filedes[1]);
+		return NULL;
+	}
+
+	/*
+	 * modificări pe baza tipului fișierului
+	 */
+	if (strncmp("r", type, 1) == 0) {
+		stream->mod = READ;
+		stream->fd = filedes[0];
+	} else if (strncmp("w", type, 1) == 0) {
+		stream->mod = WRITE;
+		stream->fd = filedes[1];
+	} else {
+		close(filedes[0]);
+		close(filedes[1]);
+		free(stream);
+		return NULL;
+	}
+
+	/*
+	 * pornește proces copil
+	 */
+	pid = fork();
+	if (init_proc(pid, stream, filedes, command) == -1)
+		return NULL;
 
 	return stream;
 }
 
+/*
+ * funcție similară pclose din libc, așteaptă terminarea procesului și
+ * eliberează memoria ocupată de SO_FILE
+ * @stream	= un pointer către o structură de tip SO_FILE care conține
+ *		  datele fișierului
+ * @return	= codul de ieșire al procesului sau -1 în caz de eroare
+ */
 int so_pclose(SO_FILE *stream)
 {
-	return 0;
+	pid_t pid = stream->pid;
+	int ret, status;
+
+	if (so_fflush(stream) == SO_EOF && stream->last == WRITE) {
+		stream->error = SO_EOF;
+		close(stream->fd);
+		free(stream);
+		return SO_EOF;
+	}
+
+	close(stream->fd);
+	free(stream);
+
+	/*
+	 * așteaptă terminarea proccesului lansat cu so_popen
+	 */
+	ret = waitpid(pid, &status, 0);
+	if (ret == -1 || !WIFEXITED(status))
+		return -1;
+
+	return status;
 }

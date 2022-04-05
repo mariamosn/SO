@@ -1,0 +1,85 @@
+Maria Moșneag
+333CA
+Sisteme de Operare
+Tema 2
+
+Organizare
+
+	- so_stdio.c:			conține implementarea funcțiilor specifice libc
+	- xfile.h și xfile.c:	preluate din Laboratorul 2, conțin implementarea
+							funcției xwrite
+							(doar pe Linux)
+	- Makefile
+	- README
+
+	Consider că tema este utilă pentru fixarea cunoștiințelor din primele trei
+		laboratoare (în special al celui de-al doilea).
+
+	Am realizat implementarea în cel mai eficient mod în care am putut. Totuși,
+		mereu e loc de îmbunătățiri, deci nu o să mă hazardez să spun că este
+		cea mai eficientă implementare posibilă.
+
+
+Implementare
+
+	Întregul enunț al temei este implementat pentru Linux.
+	Pentru Windows sunt implementate toate funcțiile mai puțin cele ce țin de
+		rularea proceselor (so_popen și so_pclose).
+
+	-> În cadrul structurii SO_FILE am ales ca pe lângă buffer și fd (handle) să
+		memorez și un index și un size pentru buffer prin intermediul cărora
+		să stabilesc care date sunt valide. Acest lucru a fost util în special
+		în cazul folosirii funcției read, pentru cazul în care funcția nu reușea
+		să citească exact numărul de bytes ceruți, întrucât a fost de ajuns să
+		setez size la numărul de bytes citiți cu succes.
+	   De asemenea, am mai adăugat încă patru câmpuri cu rol de flag care să indice
+		modul în care a fost deschis fișierul (mod), apariția unei erori în
+		cadrul unei operații cu fișierul (error), tipul ultimei operații care a
+		folosit buffer-ul intern (last) și dacă s-a ajuns la finalul fișierului
+		(eof).
+	-> În cadrul so_fflush am folosit funcția xwrite din rezolvarea
+		laboratorului 2.
+	-> Pentru implementarea funcțiilor so_fread și so_fwrite am folosit
+		so_fgetc, respectiv so_fputc.
+	   În cazul so_fgetc, citirea se face cu ajutorul funcței read.
+	   În cazul so_fputc, scrierea se face prin apelarea so_fflush.
+
+
+	O dificultate pe care am întâlnit-o a fost legată de înțelegerea modului
+		în care trebuie corelată structura de tip SO_FILE cu procesul nou creat
+		în cadrul so_popen.
+
+
+Cum se compilează?
+
+	build:
+		Linux:
+			make
+		Windows:
+			nmake
+
+Bibliografie:
+
+	Laborator 01 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-01
+	Laborator 02 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-02
+	Laborator 03 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-03
+	Linux kernel coding style
+		https://www.kernel.org/doc/Documentation/process/coding-style.rst
+	Linux manual page
+		https://man7.org/linux/man-pages/man3/fopen.3.html
+		https://man7.org/linux/man-pages/man3/fclose.3.html
+		https://man7.org/linux/man-pages/man3/fileno.3.html
+		https://man7.org/linux/man-pages/man3/fflush.3.html
+		https://man7.org/linux/man-pages/man3/fseek.3.html
+		https://man7.org/linux/man-pages/man3/ftell.3p.html
+		https://man7.org/linux/man-pages/man3/fread.3.html
+		https://man7.org/linux/man-pages/man3/fwrite.3p.html
+		https://man7.org/linux/man-pages/man3/fgetc.3.html
+		https://man7.org/linux/man-pages/man3/fputc.3p.html
+		https://man7.org/linux/man-pages/man3/feof.3p.html
+		https://man7.org/linux/man-pages/man3/ferror.3.html
+		https://man7.org/linux/man-pages/man3/popen.3.html
+		https://man7.org/linux/man-pages/man3/pclose.3p.html
