@@ -16,6 +16,9 @@
 #include "exec_parser.h"
 #include "utils.h"
 
+#define MAPPED 1
+#define NOT_MAPPED 0
+
 static so_exec_t *exec;
 static struct sigaction old_sa;
 int fd;
@@ -40,9 +43,10 @@ int in_segm_check(char *address)
 void init_aux_data(int *page_sz, int *file_sz, int *mem_sz,
 			int *segm_start_addr, int *segm_perm,
 			int *page_start, int *page_end,
-			int *file_off, char *address, int segm_no)
+			int *file_off, char *address, int segm_no,
+			int *page_no_in_segm)
 {
-	int segm_off, page_no_in_segm;
+	int segm_off;
 
 	*page_sz = getpagesize();
 	*file_sz = exec->segments[segm_no].file_size;
@@ -51,9 +55,9 @@ void init_aux_data(int *page_sz, int *file_sz, int *mem_sz,
 	segm_off = exec->segments[segm_no].offset;
 	*segm_perm = exec->segments[segm_no].perm;
 
-	page_no_in_segm = ((int)address - *segm_start_addr) / *page_sz;
-	*page_start = page_no_in_segm * *page_sz;
-	*page_end = (page_no_in_segm + 1) * *page_sz;
+	*page_no_in_segm = ((int)address - *segm_start_addr) / *page_sz;
+	*page_start = *page_no_in_segm * *page_sz;
+	*page_end = (*page_no_in_segm + 1) * *page_sz;
 	*file_off = segm_off + *page_start;
 }
 
@@ -61,7 +65,7 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 {
 	int ret, file_sz, mem_sz;
 	int segm_no, segm_start_addr, segm_perm, file_off;
-	int page_sz, page_start, page_end;
+	int page_sz, page_start, page_end, page_no_in_segm;
 	char *address, *mmap_res;
 
 	address = info->si_addr;
@@ -92,7 +96,7 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 	 */
 	init_aux_data(&page_sz, &file_sz, &mem_sz, &segm_start_addr,
 			&segm_perm, &page_start, &page_end, &file_off,
-			address, segm_no);
+			address, segm_no, &page_no_in_segm);
 
 	if (page_start < file_sz) {
 		mmap_res = mmap((void *)segm_start_addr + page_start, page_sz,
@@ -112,6 +116,8 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 				MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
 		DIE(mmap_res == MAP_FAILED, "mmap error");
 	}
+
+	((char *)(exec->segments[segm_no].data))[page_no_in_segm] = MAPPED;
 }
 
 int so_init_loader(void)
@@ -132,6 +138,55 @@ int so_init_loader(void)
 	return 0;
 }
 
+void allocate_aux_data()
+{
+	int i, page_sz;
+
+	page_sz = getpagesize();
+
+	for (i = 0; i < exec->segments_no; i++) {
+		if (exec->segments[i].mem_size % page_sz > 0)
+			exec->segments[i].data =
+				calloc(exec->segments[i].mem_size / page_sz + 1,
+					sizeof(char));
+		else
+			exec->segments[i].data =
+				calloc(exec->segments[i].mem_size / page_sz,
+					sizeof(char));
+		DIE(exec->segments[i].data == NULL, "calloc error");
+	}
+}
+
+void free_exec()
+{
+	int i, j, ret;
+	int pages_in_segm, page_sz, mem_sz, segm_start_addr, page_start;
+
+	page_sz = getpagesize();
+
+	for (i = 0; i < exec->segments_no; i++) {
+		mem_sz = exec->segments[i].mem_size;
+		pages_in_segm = mem_sz / page_sz +
+				(int)(mem_sz % page_sz != 0);
+
+		for (j = 0; j < pages_in_segm; j++) {
+			if (((char *)exec->segments[i].data)[j] == MAPPED) {
+				segm_start_addr = exec->segments[i].vaddr;
+				page_start = j * page_sz;
+				ret = munmap((void *)segm_start_addr +
+						page_start, page_sz);
+				DIE(ret == -1, "munmap error");
+			}
+
+		}
+
+		free(exec->segments[i].data);
+	}
+
+	free(exec->segments);
+	free(exec);
+}
+
 int so_execute(char *path, char *argv[])
 {
 	exec = so_parse_exec(path);
@@ -141,9 +196,12 @@ int so_execute(char *path, char *argv[])
 	fd = open(path, O_RDONLY, 0644);
 	DIE(fd < 0, "opening file error");
 
+	allocate_aux_data();
+
 	so_start_exec(exec, argv);
 
 	close(fd);
+	free_exec();
 
 	return -1;
 }
