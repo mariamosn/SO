@@ -2,6 +2,8 @@
  * Loader Implementation
  *
  * 2018, Operating Systems
+ * Maria Moșneag
+ * 333CA
  */
 
 #include <stdio.h>
@@ -17,12 +19,18 @@
 #include "utils.h"
 
 #define MAPPED 1
-#define NOT_MAPPED 0
 
 static so_exec_t *exec;
 static struct sigaction old_sa;
 int fd;
 
+/*
+ * Funcția verifică dacă adresa primită ca parametru se regăsește într-un
+ * segment cunoscut sau nu.
+ * @address 	= adresa pentru care se face verificarea
+ * @return	= numărul segmentului în care adresa se găsește într-un segment
+ *		  cunoscut sau -1 în caz contrar
+ */
 int in_segm_check(char *address)
 {
 	int i;
@@ -40,6 +48,24 @@ int in_segm_check(char *address)
 	return -1;
 }
 
+/*
+ * Funcția inițializează variabilele auxiliare necesare rezolvării unui page
+ * fault.
+ * @page_sz		= dimensiunea unei pagini
+ * @file_sz		= dimensiunea în cadrul fișierului a segmentului curent
+ * @mem_sz		= dimensiunea ocupată de segmentul curent în memorie
+ * @segm_start_addr	= adresa la care ar trebui încărcat segmentul curent
+ * @segm_perm		= permisiunile pe care trebuie să le aibă pagina
+ * @page_start		= adresa de început a paginii curente
+ * @page_end		= adresa de final a paginii curente
+ * @file_off		= offsetul din cadrul fișierului la care începe pagina
+ *			  curentă
+ * @address		= adresa la care s-a generat page fault-ul
+ * @segm_no		= numărul de ordine al segmentului curent în cadrul
+ *			  executabilului
+ * @page_no_in_segm	= numărul de ordine al paginii în cadrul segmentului
+ *			  curent
+ */
 void init_aux_data(int *page_sz, int *file_sz, int *mem_sz,
 			int *segm_start_addr, int *segm_perm,
 			int *page_start, int *page_end,
@@ -61,6 +87,9 @@ void init_aux_data(int *page_sz, int *file_sz, int *mem_sz,
 	*file_off = segm_off + *page_start;
 }
 
+/*
+ * Handler custom de tratare al SIGSEGV.
+ */
 static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 {
 	int ret, file_sz, mem_sz;
@@ -98,6 +127,12 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 			&segm_perm, &page_start, &page_end, &file_off,
 			address, segm_no, &page_no_in_segm);
 
+	/*
+	 * În funcție de poziționarea paginii în cadrul segmentului,
+	 * memoria va conține fie date din fișier (< file_sz),
+	 * fie zerouri (> file_sz și < mem_sz),
+	 * fie valori nespecificate (> mem_sz).
+	 */
 	if (page_start < file_sz) {
 		mmap_res = mmap((void *)segm_start_addr + page_start, page_sz,
 				segm_perm, MAP_PRIVATE | MAP_FIXED,
@@ -117,12 +152,17 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *ucontext)
 		DIE(mmap_res == MAP_FAILED, "mmap error");
 	}
 
+	/*
+	 * Pagina este apoi marcată ca fiind mapată în cadrul segmentului.
+	 */
 	((char *)(exec->segments[segm_no].data))[page_no_in_segm] = MAPPED;
 }
 
+/*
+ * Funcția inițializează loader-ul.
+ */
 int so_init_loader(void)
 {
-	/* initialize on-demand loader */
 	struct sigaction sa;
 	int ret;
 
@@ -138,7 +178,10 @@ int so_init_loader(void)
 	return 0;
 }
 
-void allocate_aux_data()
+/*
+ * Funcția alocă resursele auxiliare folosite.
+ */
+void allocate_aux_data(void)
 {
 	int i, page_sz;
 
@@ -157,7 +200,10 @@ void allocate_aux_data()
 	}
 }
 
-void free_exec()
+/*
+ * Funcția eliberează resursele folosite.
+ */
+void free_exec(void)
 {
 	int i, j, ret;
 	int pages_in_segm, page_sz, mem_sz, segm_start_addr, page_start;

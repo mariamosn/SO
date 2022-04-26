@@ -1,0 +1,71 @@
+Maria Moșneag
+333CA
+Sisteme de Operare
+Tema 3
+
+
+Organizare
+
+	- loader
+		- loader.c și loader.h
+		- exec_parser.c și exec_parser.h
+		- utils.h
+	- exec
+		- exec.c
+	- Makefile
+	- README
+
+	Consider că tema este utilă pentru fixarea cunoștiințelor din
+	laboratoarele 4-6.
+
+	Am realizat implementarea în cel mai eficient mod în care am putut. Totuși,
+		mereu e loc de îmbunătățiri, deci nu o să mă hazardez să spun că este
+		cea mai eficientă implementare posibilă.
+
+
+Implementare
+
+	Întregul enunț al temei este implementat pentru Linux.
+
+	În cadrul programului sunt urmați următorii pași:
+		- Se alocă și inițializează resursele necesare
+			loader-ului (so_init_loader).
+		- Se începe execuția care va genera page fault-uri pe care va încerca
+			să le trateze sigsegv_handler (so_execute).
+	În cadrul handler-ului:
+		- Se verifică segmentul în care a fost făcut page fault-ul.
+		- Se verifică dacă acesta a fost cauzat de permisiunile invalide.
+		- Dacă este cazul, se mapează pagina de memorie la adresa potrivită.
+
+	-> În câmpul data din cadrul structurii care stochează informații despre
+		un segment am memorat pentru fiecare pagină din cadrul segmentului dacă
+		acesta a fost mapat sau nu. Am folosit apoi această informație pentru
+		a putea elibera resursele folosite după finalizarea execuției.
+		De asemenea, această informație putea fi folosită și pentru verificarea
+		cauzei producerii page fault-ului în cazul în care acesta era generat
+		din cauza permisiunilor invalide, dar am ales să fac această verificare
+		prin codul găsit în câmpul si_code din cadrul structurii siginfo_t.
+
+
+Cum se compilează?
+
+	build:
+		Linux:
+			make
+
+Bibliografie:
+
+	Laborator 04 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-04
+	Laborator 05 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-05
+	Laborator 06 - SO
+		https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-06
+	Linux kernel coding style
+		https://www.kernel.org/doc/Documentation/process/coding-style.rst
+	Linux manual page
+		https://man7.org/linux/man-pages/man2/sigaction.2.html
+        https://linux.die.net/man/2/mmap
+	Echipa de SO
+		utils.h - macro-ul DIE
+		Makefile
