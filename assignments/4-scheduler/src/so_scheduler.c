@@ -73,7 +73,7 @@ typedef struct so_scheduler {
      * linked list with all the terminated threads
      */
     node_linkedlist_t *terminated;
-    int total_threads;
+    // int total_threads;
     /*
      * TSD: data about the current thread
      */
@@ -139,7 +139,7 @@ DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
     }
 
     scheduler.terminated = NULL;
-    scheduler.total_threads = 1;
+    // scheduler.total_threads = 1;
 
     /*
      * add info about the current thread
@@ -190,7 +190,7 @@ void schedule()
 {
     so_task_t *best_candidate = NULL, *crt_running;
     node_linkedlist_t *best_candidate_node = NULL;
-    int i, sem_val;
+    int i;
 
     crt_running = scheduler.running;
     // scheduler.current_quantum--;
@@ -221,48 +221,6 @@ void schedule()
     } else {
         sem_post(&scheduler.ending_thread->sem);
     }
-
-    /*
-     * if the current running thread needs to be changed
-
-    if (best_candidate != NULL &&
-        (crt_running == NULL ||
-        crt_running->priority < best_candidate->priority ||
-        (crt_running->priority == best_candidate->priority &&
-        scheduler.current_quantum <= 0))) {
-        scheduler.running = best_candidate;
-        if (crt_running)
-            DIE(insert_list(&scheduler.ready[crt_running->priority],
-                            crt_running),
-                "inserting into linkedlist failed");
-        free(best_candidate_node);
-        scheduler.current_quantum = scheduler.time_quantum;
-
-     * if the current running thread will continue to run
-
-    } else if (best_candidate == NULL ||
-                (crt_running != NULL &&
-                (crt_running->priority > best_candidate->priority ||
-                (crt_running->priority == best_candidate->priority &&
-                scheduler.current_quantum > 0)))) {
-        scheduler.running = crt_running;
-        if (scheduler.current_quantum <= 0)
-            scheduler.current_quantum = scheduler.time_quantum;
-        if (best_candidate)
-            scheduler.ready[best_candidate->priority] = best_candidate_node;
-    } else {
-        scheduler.running = NULL;
-    }
-    
-
-    if (scheduler.running) {
-        sem_getvalue(&scheduler.running->sem, &sem_val);
-        if (sem_val == 0)
-            sem_post(&scheduler.running->sem);
-    } else {
-        sem_post(&scheduler.ending_thread->sem);
-    }
-    */
 }
 
 void *start_thread(void *params)
@@ -278,18 +236,13 @@ void *start_thread(void *params)
 
     crt_thread->handler(crt_thread->priority);
 
-    if (scheduler.running == crt_thread)
+    // if (scheduler.running == crt_thread)
         scheduler.running = NULL;
 
     insert_list_front(&scheduler.terminated, crt_thread);
 
     schedule();
-/*
-    if (scheduler.running)
-        sem_post(&scheduler.running->sem);
-    else
-        sem_post(&scheduler.ending_thread->sem);
-*/
+
     return NULL;
 }
 
@@ -301,7 +254,7 @@ void *start_thread(void *params)
  */
 DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
 {
-    so_task_t *forked_thread, *current_thread;
+    so_task_t *forked_thread;
 
     /*
      * check params
@@ -318,25 +271,17 @@ DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
 
     forked_thread->handler = func;
     forked_thread->priority = priority;
-
-    // TODO WHY?
-    current_thread = pthread_getspecific(scheduler.current_thread);
-    // sem_post(&current_thread->sem);
-
     sem_init(&forked_thread->sem, 0, 0);
 
     if (pthread_create(&forked_thread->tid, NULL, start_thread, forked_thread))
         return INVALID_TID;
-    scheduler.total_threads++;
+    // scheduler.total_threads++;
 
     /*
      * mark thread as ready
      */
     if (insert_list(&scheduler.ready[priority], forked_thread))
         return INVALID_TID;
-    
-    // TODO WHY?
-    // sem_wait(&current_thread->sem);
 
     schedule();
 
@@ -350,18 +295,20 @@ DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
  */
 DECL_PREFIX int so_wait(unsigned int io)
 {
-    so_task_t *thread = pthread_getspecific(scheduler.current_thread);
+    // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
+    so_task_t *thread = scheduler.running;
 
     if (io < 0 || io >= scheduler.io)
         return -1;
 
     if (insert_list(&scheduler.waiting[io], thread))
         return -1;
+    scheduler.running = NULL;
 
     // TODO WHY?
     // sem_post(&scheduler.running->sem);
-    // sem_wait(&thread->sem);
-    // schedule();
+    schedule();
+    sem_wait(&thread->sem);
 
     return 0;
 }
@@ -409,7 +356,7 @@ int wake_up_threads(unsigned int io)
 DECL_PREFIX int so_signal(unsigned int io)
 {
     // node_linkedlist_t *p;
-    int woken_tasks = 0;
+    int woken_tasks;
     // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
 
     if (io < 0 || io >= scheduler.io)
@@ -417,13 +364,7 @@ DECL_PREFIX int so_signal(unsigned int io)
 
     // scheduler.current_quantum--;
 
-    // TODO WHY?
-    // sem_post(&thread->sem);
-
     woken_tasks = wake_up_threads(io);
-
-    // TODO WHY?
-    // sem_wait(&thread->sem);
 
     schedule();
 
@@ -435,14 +376,7 @@ DECL_PREFIX int so_signal(unsigned int io)
  */
 DECL_PREFIX void so_exec(void)
 {
-    // TODO WHY?
-    /*
-    so_task_t *thread = pthread_getspecific(scheduler.current_thread);
-    
-    sem_post(&thread->sem);
-    sem_wait(&thread->sem);
-    */
-    //scheduler.current_quantum--;
+    scheduler.current_quantum--;
 
     schedule();
 }
@@ -483,7 +417,7 @@ DECL_PREFIX void so_end(void)
             pthread_join(thread->tid, NULL);
             sem_destroy(&thread->sem);
             free(thread);
-            scheduler.total_threads--;
+            // scheduler.total_threads--;
         }
     }
 /*
