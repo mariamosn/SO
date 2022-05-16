@@ -73,7 +73,7 @@ typedef struct so_scheduler {
     int total_threads;
 } so_scheduler_t;
 
-static so_scheduler_t scheduler;
+so_scheduler_t scheduler;
 
 /*
  * creates and initializes scheduler
@@ -83,7 +83,16 @@ static so_scheduler_t scheduler;
  */
 DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
 {
-    if (time_quantum < 0 || io < 0 || io >= SO_MAX_NUM_EVENTS)
+    /*
+     * check params
+     */
+    if (time_quantum == 0 || io > SO_MAX_NUM_EVENTS)
+        return ERROR;
+
+    /*
+     * check if the scheduler is already initialized
+     */
+    if (scheduler.state == OK)
         return ERROR;
 
     scheduler.time_quantum = time_quantum;
