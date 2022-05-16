@@ -33,13 +33,16 @@ typedef struct so_task {
      */
     so_handler *handler;
     unsigned int priority;
-    // int state;
     pthread_t tid;
-    sem_t *sem;
+    sem_t sem;
 
 } so_task_t;
 
 typedef struct so_scheduler {
+    /*
+     * the current state of the scheduler
+     * (initialized or not)
+     */
     int state;
     /*
      * time quantum for each thread
@@ -49,12 +52,6 @@ typedef struct so_scheduler {
      * number of IO devices supported
      */
     unsigned int io;
-
-    /*
-     * priority queue of ready threads
-     */
-    // node_t *ready_pq;
-
     /*
      * hashmap with threads, based on priority
      */
@@ -63,14 +60,28 @@ typedef struct so_scheduler {
      * current running thread
      */
     so_task_t *running;
+    /*
+     * time left for the current running thread
+     */
     int current_quantum;
     /*
-     * linked list with waiting threads
+     * linked lists with waiting threads,
+     * based on priorities
      */
-    // node_linkedlist_t *waiting;
     node_linkedlist_t *waiting[SO_MAX_NUM_EVENTS];
+    /*
+     * linked list with all the terminated threads
+     */
     node_linkedlist_t *terminated;
     int total_threads;
+    /*
+     * TSD: data about the current thread
+     */
+    pthread_key_t current_thread;
+    /*
+     * thread responsible for so_end
+     */
+    so_task_t *ending_thread;
 } so_scheduler_t;
 
 so_scheduler_t scheduler;
@@ -83,6 +94,9 @@ so_scheduler_t scheduler;
  */
 DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
 {
+    int i;
+    so_task_t *thread;
+
     /*
      * check params
      */
@@ -95,15 +109,79 @@ DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
     if (scheduler.state == OK)
         return ERROR;
 
+    /*
+     * setup scheduler
+     */
     scheduler.time_quantum = time_quantum;
     scheduler.io = io;
-    // scheduler.ready_pq = NULL;
-    scheduler.running = NULL;
+
+    for (i = 0; i <= SO_MAX_PRIO; i++) {
+        scheduler.ready[i] = NULL;
+    }
+
+    /*
+     * set info of the running (current) thread
+     */
+    thread = malloc(sizeof(so_task_t));
+    if (thread == NULL)
+        return ERROR;
+    thread->handler = NULL;
+    thread->priority = 0;
+    thread->tid = pthread_self();
+    sem_init(&thread->sem, 0, 0);
+    scheduler.running = thread;
+
+    // TODO ... - 1?
     scheduler.current_quantum = time_quantum;
-    // scheduler.waiting = NULL;
-    scheduler.state = OK;
+
+    for (i = 0; i < SO_MAX_NUM_EVENTS; i++) {
+        scheduler.waiting[i] = NULL;
+    }
+
     scheduler.terminated = NULL;
-    scheduler.total_threads = 0;
+    scheduler.total_threads = 1;
+
+    /*
+     * add info about the current thread
+     */
+    pthread_key_create(&scheduler.current_thread, NULL);
+    pthread_setspecific(scheduler.current_thread, thread);
+
+    scheduler.state = OK;
+
+    return 0;
+}
+
+int needs_to_be_replaced(so_task_t *candidate)
+{
+    /*
+     * the previously running thread is done and there
+     * are still other ready threads
+     */
+    if (!scheduler.running && candidate)
+        return 1;
+
+    /*
+     * there are no ready threads left
+     */
+    if (!candidate)
+        return 0;
+
+    /*
+     * the next running thread must have the max priority available
+     */
+    if (scheduler.running->priority < candidate->priority)
+        return 1;
+
+    if (scheduler.running->priority > candidate->priority)
+        return 0;
+
+    /*
+     * if the time for the current running thread expired and there is
+     * another suitable candidate, it will replace the current thread
+     */
+    if (scheduler.current_quantum <= 0)
+        return 1;
 
     return 0;
 }
@@ -112,10 +190,10 @@ void schedule()
 {
     so_task_t *best_candidate = NULL, *crt_running;
     node_linkedlist_t *best_candidate_node = NULL;
-    int i;
+    int i, sem_val;
 
     crt_running = scheduler.running;
-    scheduler.current_quantum--;
+    // scheduler.current_quantum--;
     
     for (i = SO_MAX_PRIO; i >= 0; i--) {
         if (scheduler.ready[i] != NULL) {
@@ -126,9 +204,27 @@ void schedule()
         }
     }
 
+    if (needs_to_be_replaced(best_candidate)) {
+        scheduler.running = best_candidate;
+        if (crt_running)
+            DIE(insert_list(&scheduler.ready[crt_running->priority],
+                            crt_running),
+                "inserting into linkedlist failed");
+        free(best_candidate_node);
+        scheduler.current_quantum = scheduler.time_quantum;
+        sem_post(&scheduler.running->sem);
+    } else if (scheduler.running) {
+        if (scheduler.current_quantum <= 0)
+            scheduler.current_quantum = scheduler.time_quantum;
+        if (best_candidate)
+            scheduler.ready[best_candidate->priority] = best_candidate_node;
+    } else {
+        sem_post(&scheduler.ending_thread->sem);
+    }
+
     /*
      * if the current running thread needs to be changed
-     */
+
     if (best_candidate != NULL &&
         (crt_running == NULL ||
         crt_running->priority < best_candidate->priority ||
@@ -142,9 +238,8 @@ void schedule()
         free(best_candidate_node);
         scheduler.current_quantum = scheduler.time_quantum;
 
-    /*
      * if the current running thread will continue to run
-     */
+
     } else if (best_candidate == NULL ||
                 (crt_running != NULL &&
                 (crt_running->priority > best_candidate->priority ||
@@ -155,7 +250,19 @@ void schedule()
             scheduler.current_quantum = scheduler.time_quantum;
         if (best_candidate)
             scheduler.ready[best_candidate->priority] = best_candidate_node;
+    } else {
+        scheduler.running = NULL;
     }
+    
+
+    if (scheduler.running) {
+        sem_getvalue(&scheduler.running->sem, &sem_val);
+        if (sem_val == 0)
+            sem_post(&scheduler.running->sem);
+    } else {
+        sem_post(&scheduler.ending_thread->sem);
+    }
+    */
 }
 
 void *start_thread(void *params)
@@ -165,12 +272,24 @@ void *start_thread(void *params)
     /*
      * așteaptă să fie planificat
      */
-    sem_wait(crt_thread->sem);
+    sem_wait(&crt_thread->sem);
+
+    pthread_setspecific(scheduler.current_thread, crt_thread);
 
     crt_thread->handler(crt_thread->priority);
 
+    if (scheduler.running == crt_thread)
+        scheduler.running = NULL;
+
     insert_list_front(&scheduler.terminated, crt_thread);
 
+    schedule();
+/*
+    if (scheduler.running)
+        sem_post(&scheduler.running->sem);
+    else
+        sem_post(&scheduler.ending_thread->sem);
+*/
     return NULL;
 }
 
@@ -182,42 +301,46 @@ void *start_thread(void *params)
  */
 DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
 {
-    so_task_t *thread;
+    so_task_t *forked_thread, *current_thread;
 
     /*
      * check params
      */
-    if (func == NULL || priority < 0 || priority > SO_MAX_PRIO)
+    if (func == NULL || priority > SO_MAX_PRIO)
         return INVALID_TID;
 
     /*
      * initialize thread struct (so_task_t)
      */
-    thread = malloc(sizeof(so_task_t));
-    if (thread == NULL)
+    forked_thread = malloc(sizeof(so_task_t));
+    if (forked_thread == NULL)
         return INVALID_TID;
 
-    thread->handler = func;
-    thread->priority = priority;
-    // thread->state = NEW;
-    // thread->waited_io = NO_IO_WAITED;
+    forked_thread->handler = func;
+    forked_thread->priority = priority;
 
-    sem_init(thread->sem, 0, 0);
+    // TODO WHY?
+    current_thread = pthread_getspecific(scheduler.current_thread);
+    // sem_post(&current_thread->sem);
 
-    if (pthread_create(&thread->tid, NULL, start_thread, thread))
+    sem_init(&forked_thread->sem, 0, 0);
+
+    if (pthread_create(&forked_thread->tid, NULL, start_thread, forked_thread))
         return INVALID_TID;
     scheduler.total_threads++;
 
     /*
      * mark thread as ready
      */
-    // push(&scheduler.ready_pq, thread, priority);
-    if (insert_list(&scheduler.ready[priority], thread))
+    if (insert_list(&scheduler.ready[priority], forked_thread))
         return INVALID_TID;
+    
+    // TODO WHY?
+    // sem_wait(&current_thread->sem);
 
     schedule();
 
-    return thread->tid;
+    return forked_thread->tid;
 }
 
 /*
@@ -227,20 +350,17 @@ DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
  */
 DECL_PREFIX int so_wait(unsigned int io)
 {
-    so_task_t *thread = scheduler.running;
+    so_task_t *thread = pthread_getspecific(scheduler.current_thread);
 
     if (io < 0 || io >= scheduler.io)
         return -1;
 
-    // scheduler.running->waited_io = io;
-
-    if (insert_list(&scheduler.waiting[io], scheduler.running))
+    if (insert_list(&scheduler.waiting[io], thread))
         return -1;
 
-    scheduler.running = NULL;
-
-    sem_wait(thread->sem);
-    // scheduler.running = NULL;
+    // TODO WHY?
+    // sem_post(&scheduler.running->sem);
+    // sem_wait(&thread->sem);
     // schedule();
 
     return 0;
@@ -290,14 +410,20 @@ DECL_PREFIX int so_signal(unsigned int io)
 {
     // node_linkedlist_t *p;
     int woken_tasks = 0;
-    // so_task_t *thread;
+    // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
 
     if (io < 0 || io >= scheduler.io)
         return -1;
 
     // scheduler.current_quantum--;
 
+    // TODO WHY?
+    // sem_post(&thread->sem);
+
     woken_tasks = wake_up_threads(io);
+
+    // TODO WHY?
+    // sem_wait(&thread->sem);
 
     schedule();
 
@@ -309,7 +435,14 @@ DECL_PREFIX int so_signal(unsigned int io)
  */
 DECL_PREFIX void so_exec(void)
 {
-    scheduler.current_quantum--;
+    // TODO WHY?
+    /*
+    so_task_t *thread = pthread_getspecific(scheduler.current_thread);
+    
+    sem_post(&thread->sem);
+    sem_wait(&thread->sem);
+    */
+    //scheduler.current_quantum--;
 
     schedule();
 }
@@ -321,20 +454,45 @@ DECL_PREFIX void so_end(void)
 {
     node_linkedlist_t *p;
     so_task_t *thread;
+    int i;
 
     if (scheduler.state == NOT_READY)
         return;
     scheduler.state = NOT_READY;
 
-    while (scheduler.total_threads) {
+    scheduler.ending_thread = pthread_getspecific(scheduler.current_thread);
+
+    for (i = SO_MAX_PRIO; i >= 0; i--) {
+        while (scheduler.ready[i]) {
+            p = scheduler.ready[i];
+            scheduler.running = scheduler.ready[i]->data;
+            scheduler.ready[i] = scheduler.ready[i]->next;
+            free(p);
+            sem_post(&scheduler.running->sem);
+            sem_wait(&scheduler.ending_thread->sem);
+        }
+    }
+
+    // while (scheduler.total_threads > 1) {
+    while (scheduler.terminated) {
         p = pop_list(&scheduler.terminated);
         thread = p->data;
+        free(p);
 
         if (thread) {
             pthread_join(thread->tid, NULL);
-            sem_destroy(thread->sem);
+            sem_destroy(&thread->sem);
             free(thread);
             scheduler.total_threads--;
         }
     }
+/*
+    if (scheduler.running) {
+        sem_destroy(&scheduler.running->sem);
+        free(scheduler.running);
+    }
+*/
+    sem_destroy(&scheduler.ending_thread->sem);
+    free(scheduler.ending_thread);
+    pthread_key_delete(scheduler.current_thread);
 }
