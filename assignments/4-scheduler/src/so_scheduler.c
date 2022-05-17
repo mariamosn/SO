@@ -314,9 +314,8 @@ DECL_PREFIX int so_wait(unsigned int io)
         return -1;
     scheduler.running = NULL;
 
-    // TODO WHY?
     schedule(0);
-    // sem_post(&scheduler.running->sem);
+
     sem_wait(&thread->sem);
 
     return 0;
@@ -364,14 +363,11 @@ int wake_up_threads(unsigned int io)
  */
 DECL_PREFIX int so_signal(unsigned int io)
 {
-    // node_linkedlist_t *p;
     int woken_tasks;
     // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
 
     if (io < 0 || io >= scheduler.io)
         return -1;
-
-    // scheduler.current_quantum--;
 
     woken_tasks = wake_up_threads(io);
 
