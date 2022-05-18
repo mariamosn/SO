@@ -1,3 +1,9 @@
+/*
+ * Maria Moșneag
+ * 333CA
+ * Tema 4 SO
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -10,17 +16,6 @@
 #include "linkedlist.h"
 
 #define ERROR -1
-
-/*
- * possible states of a thread
- */
-/*
-#define NEW 0
-#define READY 1
-#define RUNNING 2
-#define WAITING 3
-#define TERMINATED 4
-*/
 
 #define OK 1
 #define NOT_READY 0
@@ -73,7 +68,6 @@ typedef struct so_scheduler {
      * linked list with all the terminated threads
      */
     node_linkedlist_t *terminated;
-    // int total_threads;
     /*
      * TSD: data about the current thread
      */
@@ -129,7 +123,10 @@ void schedule(int wait)
     crt_running = scheduler.running;
     crt_thread = pthread_getspecific(scheduler.current_thread);
     scheduler.current_quantum--;
-    
+
+    /*
+     * find the best candidate for the next running thread
+     */
     for (i = SO_MAX_PRIO; i >= 0; i--) {
         if (scheduler.ready[i] != NULL) {
             best_candidate_node = scheduler.ready[i];
@@ -139,6 +136,9 @@ void schedule(int wait)
         }
     }
 
+    /*
+     * if the current running thread needs to be replaced
+     */
     if (needs_to_be_replaced(best_candidate)) {
         scheduler.running = best_candidate;
         if (crt_running)
@@ -150,14 +150,21 @@ void schedule(int wait)
         sem_post(&scheduler.running->sem);
         if (wait)
             sem_wait(&crt_thread->sem);
+
+    /*
+     * if the current running thread will continue to run
+     */
     } else if (scheduler.running) {
         if (scheduler.current_quantum <= 0)
             scheduler.current_quantum = scheduler.time_quantum;
         if (best_candidate)
             scheduler.ready[best_candidate->priority] = best_candidate_node;
+
+    /*
+     * if there are no threads left to be scheduled
+     */
     } else {
         sem_post(&scheduler.ending_thread->sem);
-        // sem_wait(&crt_thread->sem);
     }
 }
 
@@ -206,15 +213,13 @@ DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
     sem_init(&thread->sem, 0, 0);
     scheduler.running = thread;
 
-    // TODO ... - 1?
-    scheduler.current_quantum = time_quantum;
+    scheduler.current_quantum = time_quantum - 1;
 
     for (i = 0; i < SO_MAX_NUM_EVENTS; i++) {
         scheduler.waiting[i] = NULL;
     }
 
     scheduler.terminated = NULL;
-    // scheduler.total_threads = 1;
 
     /*
      * add info about the current thread
@@ -225,8 +230,6 @@ DECL_PREFIX int so_init(unsigned int time_quantum, unsigned int io)
     scheduler.ending_thread = NULL;
 
     scheduler.state = OK;
-
-    schedule(1);
 
     return 0;
 }
@@ -242,11 +245,14 @@ void *start_thread(void *params)
 
     pthread_setspecific(scheduler.current_thread, crt_thread);
 
+    /*
+     * run
+     */
     crt_thread->handler(crt_thread->priority);
 
-    // if (scheduler.running == crt_thread)
-        // scheduler.running = NULL;
-
+    /*
+     * mark as terminated
+     */
     insert_list_front(&scheduler.terminated, crt_thread);
 
     scheduler.running = NULL;
@@ -284,7 +290,6 @@ DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
 
     if (pthread_create(&forked_thread->tid, NULL, start_thread, forked_thread))
         return INVALID_TID;
-    // scheduler.total_threads++;
 
     /*
      * mark thread as ready
@@ -304,7 +309,6 @@ DECL_PREFIX tid_t so_fork(so_handler *func, unsigned int priority)
  */
 DECL_PREFIX int so_wait(unsigned int io)
 {
-    // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
     so_task_t *thread = scheduler.running;
 
     if (io < 0 || io >= scheduler.io)
@@ -364,7 +368,6 @@ int wake_up_threads(unsigned int io)
 DECL_PREFIX int so_signal(unsigned int io)
 {
     int woken_tasks;
-    // so_task_t *thread = pthread_getspecific(scheduler.current_thread);
 
     if (io < 0 || io >= scheduler.io)
         return -1;
@@ -381,8 +384,6 @@ DECL_PREFIX int so_signal(unsigned int io)
  */
 DECL_PREFIX void so_exec(void)
 {
-    // scheduler.current_quantum--;
-
     schedule(1);
 }
 
@@ -395,24 +396,33 @@ DECL_PREFIX void so_end(void)
     so_task_t *thread;
     int i;
 
+    /*
+     * check if the scheduler is initialized
+     */
     if (scheduler.state == NOT_READY)
         return;
     scheduler.state = NOT_READY;
 
     scheduler.ending_thread = pthread_getspecific(scheduler.current_thread);
 
+    /*
+     * check if there are any threads left that need to be scheduled
+     */
     for (i = SO_MAX_PRIO; i >= 0; i--) {
         while (scheduler.ready[i]) {
             p = scheduler.ready[i];
             scheduler.running = scheduler.ready[i]->data;
             scheduler.ready[i] = scheduler.ready[i]->next;
             free(p);
+            scheduler.current_quantum = scheduler.time_quantum;
             sem_post(&scheduler.running->sem);
             sem_wait(&scheduler.ending_thread->sem);
         }
     }
 
-    // while (scheduler.total_threads > 1) {
+    /*
+     * wait for all the threads
+     */
     while (scheduler.terminated) {
         p = pop_list(&scheduler.terminated);
         thread = p->data;
@@ -422,15 +432,9 @@ DECL_PREFIX void so_end(void)
             pthread_join(thread->tid, NULL);
             sem_destroy(&thread->sem);
             free(thread);
-            // scheduler.total_threads--;
         }
     }
-/*
-    if (scheduler.running) {
-        sem_destroy(&scheduler.running->sem);
-        free(scheduler.running);
-    }
-*/
+
     sem_destroy(&scheduler.ending_thread->sem);
     free(scheduler.ending_thread);
     pthread_key_delete(scheduler.current_thread);
