@@ -1,0 +1,44 @@
+==11841== Memcheck, a memory error detector
+==11841== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==11841== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==11841== Command: _test/bin/test_fread_large ./_test/work/test_5
+==11841== Parent PID: 11837
+==11841== 
+==11841== 
+==11841== Process terminating with default action of signal 2 (SIGINT)
+==11841==    at 0x4980D69: open (open64.c:48)
+==11841==    by 0x4903045: _IO_file_open (fileops.c:189)
+==11841==    by 0x4903309: _IO_file_fopen@@GLIBC_2.2.5 (fileops.c:281)
+==11841==    by 0x48F59BD: __fopen_internal (iofopen.c:75)
+==11841==    by 0x48F59BD: fopen@@GLIBC_2.2.5 (iofopen.c:86)
+==11841==    by 0x109840: get_page_prot (hooks.c:22)
+==11841==    by 0x109DB8: try_hook_rela (hooks.c:166)
+==11841==    by 0x10A1BD: install_hooks (hooks.c:295)
+==11841==    by 0x109584: main (test_fread_large.c:48)
+==11841== 
+==11841== HEAP SUMMARY:
+==11841==     in use at exit: 16,472 bytes in 2 blocks
+==11841==   total heap usage: 3 allocs, 1 frees, 16,528 bytes allocated
+==11841== 
+==11841== 472 bytes in 1 blocks are still reachable in loss record 1 of 2
+==11841==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==11841==    by 0x48F595D: __fopen_internal (iofopen.c:65)
+==11841==    by 0x48F595D: fopen@@GLIBC_2.2.5 (iofopen.c:86)
+==11841==    by 0x109840: get_page_prot (hooks.c:22)
+==11841==    by 0x109DB8: try_hook_rela (hooks.c:166)
+==11841==    by 0x10A1BD: install_hooks (hooks.c:295)
+==11841==    by 0x109584: main (test_fread_large.c:48)
+==11841== 
+==11841== 16,000 bytes in 1 blocks are still reachable in loss record 2 of 2
+==11841==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==11841==    by 0x109538: main (test_fread_large.c:45)
+==11841== 
+==11841== LEAK SUMMARY:
+==11841==    definitely lost: 0 bytes in 0 blocks
+==11841==    indirectly lost: 0 bytes in 0 blocks
+==11841==      possibly lost: 0 bytes in 0 blocks
+==11841==    still reachable: 16,472 bytes in 2 blocks
+==11841==         suppressed: 0 bytes in 0 blocks
+==11841== 
+==11841== For lists of detected and suppressed errors, rerun with: -s
+==11841== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

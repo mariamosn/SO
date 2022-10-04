@@ -1,0 +1,15 @@
+==125073== Memcheck, a memory error detector
+==125073== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==125073== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==125073== Command: ./so-cpp _test/inputs/test37.in
+==125073== Parent PID: 125067
+==125073== 
+==125073== 
+==125073== HEAP SUMMARY:
+==125073==     in use at exit: 0 bytes in 0 blocks
+==125073==   total heap usage: 17 allocs, 17 frees, 15,641 bytes allocated
+==125073== 
+==125073== All heap blocks were freed -- no leaks are possible
+==125073== 
+==125073== For lists of detected and suppressed errors, rerun with: -s
+==125073== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
